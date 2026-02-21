@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>FinanceHub — Controle Financeiro</title>
+  <title>Controle de Gastos</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -18,27 +18,20 @@
 
 <!-- ===== LOGIN SCREEN ===== -->
 <div id="login-screen" class="login-screen">
-  <div class="login-bg">
-    <div class="login-blob blob1"></div>
-    <div class="login-blob blob2"></div>
-    <div class="login-blob blob3"></div>
-  </div>
   <div class="login-card">
     <div class="login-logo">
-      <i class="fa-solid fa-chart-line"></i>
+      <i class="fa-solid fa-wallet"></i>
     </div>
-    <h1 class="login-title">FinanceHub</h1>
-    <p class="login-subtitle">Seu controle financeiro inteligente</p>
-    <div class="login-features">
-      <div class="feature-item"><i class="fa-solid fa-shield-halved"></i> Dados seguros no Google</div>
-      <div class="feature-item"><i class="fa-solid fa-chart-pie"></i> Dashboard em tempo real</div>
-      <div class="feature-item"><i class="fa-solid fa-bolt"></i> Rendimentos automáticos</div>
-    </div>
+    <h1 class="login-title">Controle de gastos</h1>
+    <p class="login-subtitle">Gerencie suas finanças</p>
     <button id="google-login-btn" class="google-btn">
-      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="22"/>
-      Entrar com Google
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20"/>
+      Entrar
     </button>
-    <p class="login-hint">Uso individual · Dados sincronizados na nuvem</p>
+    <p class="login-note">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      Autenticação exclusiva via OAuth 2.0. Plataforma desenvolvida sobre o Google Firebase. Todos os dados são guardados com criptografia AES-256 em repouso.
+    </p>
   </div>
 </div>
 
@@ -49,8 +42,8 @@
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <div class="sidebar-logo">
-        <i class="fa-solid fa-chart-line"></i>
-        <span>FinanceHub</span>
+        <i class="fa-solid fa-wallet"></i>
+        <span>Controle de Gastos</span>
       </div>
       <button class="sidebar-toggle" id="sidebar-toggle"><i class="fa-solid fa-bars"></i></button>
     </div>
@@ -82,7 +75,7 @@
         <i class="fa-solid fa-credit-card"></i><span>Cartões</span>
       </a>
       <a href="#" class="nav-item" data-page="relatorios">
-        <i class="fa-solid fa-file-chart-column"></i><span>Relatórios</span>
+        <i class="fa-solid fa-chart-line"></i><span>Relatórios</span>
       </a>
     </nav>
 

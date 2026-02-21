@@ -107,7 +107,7 @@ function showApp(user) {
   document.getElementById("login-screen").classList.add("hidden");
   document.getElementById("app").classList.remove("hidden");
   document.getElementById("user-name").textContent = user.displayName || user.email;
-  document.getElementById("user-photo").src = user.photoURL || "https://ui-avatars.com/api/?name=" + encodeURIComponent(user.displayName || "U") + "&background=6366f1&color=fff";
+  document.getElementById("user-photo").src = user.photoURL || "https://ui-avatars.com/api/?name=" + encodeURIComponent(user.displayName || "U") + "&background=3b82f6&color=fff";
 }
 
 function showLogin() {
@@ -427,7 +427,7 @@ function getCategoryIcon(cat) {
     moradia:     `<i class="fa-solid fa-house" style="color:#8b5cf6"></i>`,
     saude:       `<i class="fa-solid fa-heart-pulse" style="color:#ef4444"></i>`,
     lazer:       `<i class="fa-solid fa-gamepad" style="color:#ec4899"></i>`,
-    educacao:    `<i class="fa-solid fa-graduation-cap" style="color:#6366f1"></i>`,
+    educacao:    `<i class="fa-solid fa-graduation-cap" style="color:#3b82f6"></i>`,
     roupas:      `<i class="fa-solid fa-shirt" style="color:#14b8a6"></i>`,
     tecnologia:  `<i class="fa-solid fa-laptop" style="color:#0ea5e9"></i>`,
     outro:       `<i class="fa-solid fa-ellipsis" style="color:#94a3b8"></i>`
@@ -497,7 +497,7 @@ function renderChartCategorias(mKey) {
   const sorted = Object.entries(catMap).sort((a,b) => b[1]-a[1]);
   const catLabels = { alimentacao:"Alimentação", transporte:"Transporte", moradia:"Moradia",
     saude:"Saúde", lazer:"Lazer", educacao:"Educação", roupas:"Roupas", tecnologia:"Tecnologia", outro:"Outro" };
-  const colors = ["#6366f1","#10b981","#f59e0b","#ef4444","#0ea5e9","#8b5cf6","#ec4899","#14b8a6","#94a3b8"];
+  const colors = ["#3b82f6","#059669","#d97706","#dc2626","#0284c7","#7c3aed","#db2777","#0d9488","#64748b"];
 
   if (sorted.length === 0) {
     charts.categorias = new Chart(ctx, { type: "doughnut", data: { labels: ["Sem gastos"], datasets: [{ data: [1], backgroundColor: ["#e2e8f0"] }] }, options: { plugins: { legend: { position: "bottom" } } } });
@@ -918,22 +918,22 @@ function exportPDF(year) {
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Inter',Arial,sans-serif;color:#1e293b;background:#fff;padding:40px;font-size:13px}
-    .header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;padding-bottom:18px;border-bottom:3px solid #6366f1}
-    .logo{font-size:22px;font-weight:800;color:#6366f1}.logo-sub{color:#64748b;font-size:12px;margin-top:4px}
+    .header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;padding-bottom:18px;border-bottom:3px solid #3b82f6}
+    .logo{font-size:22px;font-weight:800;color:#3b82f6}.logo-sub{color:#64748b;font-size:12px;margin-top:4px}
     .header-right{text-align:right;color:#64748b;font-size:12px;line-height:1.7}
     .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
     .sbox{padding:14px;border-radius:8px;border-left:4px solid}
     .sbox.income{background:#f0fdf4;border-color:#10b981}.sbox.expense{background:#fef2f2;border-color:#ef4444}
-    .sbox.balance{background:#eef2ff;border-color:#6366f1}.sbox.savings{background:#fffbeb;border-color:#f59e0b}
+    .sbox.balance{background:#eff6ff;border-color:#3b82f6}.sbox.savings{background:#fffbeb;border-color:#f59e0b}
     .sbox .label{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:600}
     .sbox .value{font-size:18px;font-weight:800;margin-top:3px}
-    .income .value{color:#10b981}.expense .value{color:#ef4444}.balance .value{color:#6366f1}.savings .value{color:#f59e0b}
+    .income .value{color:#059669}.expense .value{color:#dc2626}.balance .value{color:#3b82f6}.savings .value{color:#d97706}
     h2{font-size:14px;font-weight:700;margin:20px 0 10px;color:#1e293b}
     table{width:100%;border-collapse:collapse;margin-bottom:20px}
-    th{background:#6366f1;color:#fff;padding:9px 12px;text-align:left;font-size:11px;font-weight:700;letter-spacing:.04em}
+    th{background:#3b82f6;color:#fff;padding:9px 12px;text-align:left;font-size:11px;font-weight:700;letter-spacing:.04em}
     th:not(:first-child){text-align:right}
     td{padding:8px 12px;border-bottom:1px solid #e2e8f0}
-    .trow td{background:#eef2ff;font-weight:700;border-top:2px solid #6366f1}
+    .trow td{background:#eff6ff;font-weight:700;border-top:2px solid #3b82f6}
     .footer{margin-top:28px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px}
     @media print{body{padding:20px}}
   </style>
@@ -1103,11 +1103,11 @@ function renderChartEvolucao() {
       datasets: [{
         label: "Saldo Acumulado",
         data,
-        borderColor: "#6366f1",
+        borderColor: "#3b82f6",
         backgroundColor: "rgba(99,102,241,0.12)",
         fill: true,
         tension: 0.4,
-        pointBackgroundColor: "#6366f1",
+        pointBackgroundColor: "#3b82f6",
         pointRadius: 5
       }]
     },
@@ -1133,7 +1133,7 @@ function renderChartTopCategorias() {
     type: "bar",
     data: {
       labels: sorted.map(([k]) => catLabels[k] || k),
-      datasets: [{ label: "Total", data: sorted.map(([,v]) => v), backgroundColor: ["#6366f1","#10b981","#f59e0b","#ef4444","#0ea5e9","#8b5cf6","#ec4899","#14b8a6"], borderRadius: 6 }]
+      datasets: [{ label: "Total", data: sorted.map(([,v]) => v), backgroundColor: ["#3b82f6","#059669","#d97706","#dc2626","#0284c7","#7c3aed","#db2777","#0d9488"], borderRadius: 6 }]
     },
     options: {
       indexAxis: "y",
@@ -1155,7 +1155,7 @@ function renderChartPagamento() {
     type: "pie",
     data: {
       labels: ["Cartão", "Pix", "Dinheiro"],
-      datasets: [{ data: [map.cartao, map.pix, map.dinheiro], backgroundColor: ["#6366f1","#10b981","#f59e0b"], borderWidth: 2, borderColor: "#fff" }]
+      datasets: [{ data: [map.cartao, map.pix, map.dinheiro], backgroundColor: ["#3b82f6","#059669","#d97706"], borderWidth: 2, borderColor: "#fff" }]
     },
     options: {
       responsive: true,
@@ -1377,7 +1377,7 @@ window.editCartao = (id) => {
   document.getElementById("cart-nome").value       = c.nome;
   document.getElementById("cart-limite").value     = c.limite || "";
   document.getElementById("cart-vencimento").value = c.vencimento;
-  document.getElementById("cart-color").value      = c.color || "#6366f1";
+  document.getElementById("cart-color").value      = c.color || "#3b82f6";
   document.querySelectorAll("#cart-color-picker .color-opt").forEach(el => {
     el.classList.toggle("active", el.dataset.color === c.color);
   });
