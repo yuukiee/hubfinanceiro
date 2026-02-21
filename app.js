@@ -1173,12 +1173,26 @@ function exportPDF(year) {
                   : year > now.getFullYear() ? endOfYear
                   : todayStr; // ano atual: até hoje
 
+  // Helper: retorna salário para o mês no contexto do relatório anual.
+  // Para meses futuros (no ano atual), usa o valor configurado como previsão.
+  // Para anos anteriores ou futuros: sempre inclui (já passou ou já está previsto).
+  const getSalaryForPDF = (mKey) => {
+    if (!salarioConfig || !salarioConfig.ativo || !salarioConfig.valor) return 0;
+    const [y, m_] = mKey.split("-").map(Number);
+    // Ano passado: salário já foi pago em todos os meses
+    if (y < now.getFullYear()) return salarioConfig.valor;
+    // Ano futuro: projetado para todos os meses
+    if (y > now.getFullYear()) return salarioConfig.valor;
+    // Ano atual: usa lógica real (só meses cujo último dia útil já passou)
+    return getSalaryForMonth(mKey);
+  };
+
   // ── Extrato mensal ──────────────────────────────────────────
   let tableRows = "", totalRec = 0, totalGas = 0, totalSal = 0, acumulado = 0;
   for (let m = 0; m < 12; m++) {
     const mKey = `${year}-${String(m+1).padStart(2,"0")}`;
     const recPura = receitas.filter(r => monthKey(r.data) === mKey).reduce((s,r) => s + r.valor, 0);
-    const sal  = getSalaryForMonth(mKey);
+    const sal  = getSalaryForPDF(mKey);
     const rec  = recPura + sal;
     const gas  = calcGastosMes(mKey);
     const saldo = rec - gas;
@@ -1279,11 +1293,12 @@ function exportPDF(year) {
   let totalSalAno = 0;
   const salRows = months.map((mn, mi) => {
     const mKey = `${year}-${String(mi+1).padStart(2,"0")}`;
-    const val  = getSalaryForMonth(mKey);
+    const val  = getSalaryForPDF(mKey);
     if (val > 0) totalSalAno += val;
+    const isFut = year > now.getFullYear() || (year === now.getFullYear() && mi > now.getMonth());
     return val > 0
-      ? `<tr style="background:${mi%2===0?"#fff":"#f8fafc"}">
-           <td>${mn}</td>
+      ? `<tr style="background:${mi%2===0?"#fff":"#f8fafc"}${isFut?";opacity:.65":""}">
+           <td>${mn}${isFut?" <em style='color:#94a3b8;font-size:9px'>(previsto)</em>":""}</td>
            <td style="text-align:right;color:#3b82f6;font-weight:600">${fmt(val)}</td>
          </tr>`
       : "";

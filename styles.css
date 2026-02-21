@@ -380,6 +380,13 @@ input, select, textarea { font-family: inherit; }
 .sc-value { font-size: 1.35rem; font-weight: 800; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sc-sub   { font-size: .78rem; color: var(--text3); display: block; margin-top: 2px; }
 
+.income  .sc-value { color: var(--success); }
+.expense .sc-value { color: var(--danger); }
+.free    .sc-value { color: var(--primary); }
+.pending .sc-value { color: var(--warning); }
+.yield   .sc-value { color: var(--yield); }
+.reserve .sc-value { color: var(--info); }
+
 /* ── BUDGET TRACKER ─────────────────────────────────────────── */
 .budget-tracker .card-header { margin-bottom: 14px; }
 .budget-bar-container { padding: 0 2px; }
