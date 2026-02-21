@@ -2368,9 +2368,10 @@ function bindUIEvents() {
     renderAnualReport(year);
   });
 
-  // Export PDF
-  document.getElementById("btn-export-pdf")?.addEventListener("click", () => {
+  // Export PDF — recarrega reservas antes para garantir metaMensal atualizado
+  document.getElementById("btn-export-pdf")?.addEventListener("click", async () => {
     const year = parseInt(document.getElementById("anual-year-select")?.value || new Date().getFullYear());
+    await loadReservas();
     exportPDF(year);
   });
 
