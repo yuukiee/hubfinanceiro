@@ -320,6 +320,25 @@ function getInstallmentDueMonth(gasto, cartao, index) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
 }
 
+// Retorna o mês de COMPETÊNCIA orçamentária de uma parcela.
+// Quando parcelaInicio está definido e é posterior ao mês da compra, a parcela
+// vence no mês seguinte ao que o usuário precisa reservar o dinheiro.
+// Ex.: compra em fev, parcelaInicio=mar → competência da parcela 1 = fev, 2 = mar, etc.
+// Sem parcelaInicio: competência = vencimento (sem deslocamento).
+function getInstallmentBudgetMonth(gasto, cartao, index) {
+  const dueKey = getInstallmentDueMonth(gasto, cartao, index);
+  if (!gasto.parcelaInicio) return dueKey;
+  // Verifica se parcelaInicio é posterior ao mês da compra
+  const buyKey = monthKey(gasto.data);
+  if (gasto.parcelaInicio > buyKey) {
+    // Desloca 1 mês para trás: parcela que vence em março conta em fevereiro
+    const [y, m] = dueKey.split("-").map(Number);
+    const d = new Date(y, m - 2, 1); // -2 porque m é 1-indexed
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+  }
+  return dueKey;
+}
+
 // Verifica se a fatura de um cartão para um mês específico já venceu
 function isFaturaVencida(cartao, mKey) {
   const [y, m] = mKey.split("-").map(Number);
@@ -329,7 +348,7 @@ function isFaturaVencida(cartao, mKey) {
   return agora > dueDate;
 }
 
-// Total de gastos efetivos num mês: parcelas de cartão com vencimento no mês + pix/dinheiro
+// Total de gastos efetivos num mês (competência): parcelas de cartão pelo mês de competência + pix/dinheiro
 function calcGastosMes(mKey) {
   let total = 0;
   for (const g of gastos) {
@@ -339,7 +358,7 @@ function calcGastosMes(mKey) {
       const cartao = cartoes.find(c => c.id === g.cartaoId);
       const parcelas = g.parcelas || 1;
       for (let i = 0; i < parcelas; i++) {
-        if (getInstallmentDueMonth(g, cartao, i) === mKey) {
+        if (getInstallmentBudgetMonth(g, cartao, i) === mKey) {
           total += g.valor / parcelas;
         }
       }
@@ -510,10 +529,10 @@ function renderChartReceitaGasto(year) {
       const parcelas = g.parcelas || 1;
       const valorParc = g.valor / parcelas;
       for (let i = 0; i < parcelas; i++) {
-        const dueKey = getInstallmentDueMonth(g, cartao, i); // "YYYY-MM"
-        const [dy] = dueKey.split("-").map(Number);
+        const budgetKey = getInstallmentBudgetMonth(g, cartao, i); // mês de competência
+        const [dy] = budgetKey.split("-").map(Number);
         if (dy === year) {
-          const mo = parseInt(dueKey.split("-")[1]) - 1; // 0-indexed
+          const mo = parseInt(budgetKey.split("-")[1]) - 1; // 0-indexed
           gasData[mo] += valorParc;
         }
       }
@@ -554,7 +573,7 @@ function renderChartCategorias(mKey) {
       const parcelas = g.parcelas || 1;
       const valorParc = g.valor / parcelas;
       for (let i = 0; i < parcelas; i++) {
-        if (getInstallmentDueMonth(g, cartao, i) === mKey) {
+        if (getInstallmentBudgetMonth(g, cartao, i) === mKey) {
           catMap[cat] = (catMap[cat] || 0) + valorParc;
         }
       }
