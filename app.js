@@ -1038,27 +1038,36 @@ function exportPDF(year) {
   const userName  = currentUser?.displayName || "Usuário";
   const now       = new Date();
   const todayStr  = today();
+  // Para caixinhas: rendimento projetado até 31/dez do ano do relatório
+  const endOfYear = `${year}-12-31`;
+  const yieldDate = year < now.getFullYear() ? endOfYear
+                  : year > now.getFullYear() ? endOfYear
+                  : todayStr; // ano atual: até hoje
 
   // ── Extrato mensal ──────────────────────────────────────────
-  let tableRows = "", totalRec = 0, totalGas = 0, acumulado = 0;
+  let tableRows = "", totalRec = 0, totalGas = 0, totalSal = 0, acumulado = 0;
   for (let m = 0; m < 12; m++) {
     const mKey = `${year}-${String(m+1).padStart(2,"0")}`;
-    const rec = receitas.filter(r => monthKey(r.data) === mKey).reduce((s,r) => s + r.valor, 0)
-              + getSalaryForMonth(mKey);
-    const gas = calcGastosMes(mKey);
+    const recPura = receitas.filter(r => monthKey(r.data) === mKey).reduce((s,r) => s + r.valor, 0);
+    const sal  = getSalaryForMonth(mKey);
+    const rec  = recPura + sal;
+    const gas  = calcGastosMes(mKey);
     const saldo = rec - gas;
-    acumulado += saldo; totalRec += rec; totalGas += gas;
+    acumulado += saldo; totalRec += rec; totalGas += gas; totalSal += sal;
     const isFut = year > now.getFullYear() || (year === now.getFullYear() && m > now.getMonth());
-    tableRows += `<tr style="background:${m%2===0?"#f8fafc":"#fff"}${isFut?";opacity:.6":""}">
-      <td>${months[m]}${isFut?" <em style='color:#94a3b8;font-size:10px'>(previsto)</em>":""}</td>
-      <td style="color:#10b981;text-align:right">${rec > 0 ? fmt(rec) : "—"}</td>
-      <td style="color:#ef4444;text-align:right">${gas > 0 ? fmt(gas) : "—"}</td>
-      <td style="color:${saldo<0?"#ef4444":"#10b981"};text-align:right">${fmt(saldo)}</td>
-      <td style="color:${acumulado<0?"#ef4444":"#10b981"};text-align:right">${fmt(acumulado)}</td>
+    const rowBg = isFut ? "#f8fafc" : saldo < 0 ? "#fff5f5" : m%2===0 ? "#f8fafc" : "#fff";
+    tableRows += `<tr style="background:${rowBg}${isFut?";opacity:.65":""}">
+      <td>${months[m]}${isFut?" <em style='color:#94a3b8;font-size:9px'>(previsto)</em>":""}</td>
+      <td style="text-align:right;color:#10b981">${recPura > 0 ? fmt(recPura) : "—"}</td>
+      <td style="text-align:right;color:#3b82f6">${sal > 0 ? fmt(sal) : "—"}</td>
+      <td style="text-align:right;color:#ef4444">${gas > 0 ? fmt(gas) : "—"}</td>
+      <td style="text-align:right;font-weight:600;color:${saldo<0?"#ef4444":"#059669"}">${fmt(saldo)}</td>
+      <td style="text-align:right;color:${acumulado<0?"#ef4444":"#1e293b"}">${fmt(acumulado)}</td>
     </tr>`;
   }
   const totalSaldo = totalRec - totalGas;
   const taxa = totalRec > 0 ? ((totalSaldo / totalRec) * 100).toFixed(1) + "%" : "—";
+  const poupancaNum = totalRec > 0 ? (totalSaldo / totalRec) * 100 : 0;
 
   // ── Gastos por categoria (competência correta) ──────────────
   const catMap = {};
@@ -1077,11 +1086,22 @@ function exportPDF(year) {
     }
   }
   const catSorted = Object.entries(catMap).sort((a,b) => b[1]-a[1]);
-  const catRows = catSorted.map(([k,v]) =>
-    `<tr><td>${catLabels[k]||k}</td>
-     <td style="text-align:right;color:#ef4444;font-weight:600">${fmt(v)}</td>
-     <td style="text-align:right;color:#64748b">${totalGas>0?((v/totalGas)*100).toFixed(1)+"%":"—"}</td></tr>`
-  ).join("");
+  const catColors = ["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#0ea5e9","#ec4899","#14b8a6","#64748b"];
+  const catRows = catSorted.map(([k,v], idx) => {
+    const pct = totalGas > 0 ? (v/totalGas)*100 : 0;
+    return `<tr>
+      <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${catColors[idx%catColors.length]};margin-right:6px;vertical-align:middle"></span>${catLabels[k]||k}</td>
+      <td style="text-align:right;color:#ef4444;font-weight:600">${fmt(v)}</td>
+      <td style="text-align:right">
+        <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
+          <div style="width:60px;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden">
+            <div style="width:${pct.toFixed(1)}%;height:100%;background:${catColors[idx%catColors.length]};border-radius:3px"></div>
+          </div>
+          <span style="color:#64748b;min-width:34px">${pct.toFixed(1)}%</span>
+        </div>
+      </td>
+    </tr>`;
+  }).join("");
 
   // ── Todos os gastos do ano (por competência) ────────────────
   const gastosAno = gastos.filter(g => {
@@ -1096,11 +1116,11 @@ function exportPDF(year) {
     return false;
   }).sort((a,b) => a.data.localeCompare(b.data));
 
-  const gastosRows = gastosAno.map(g => {
+  const gastosRows = gastosAno.map((g, idx) => {
     const cartao  = cartoes.find(c => c.id === g.cartaoId);
     const parcelas = g.parcelas || 1;
     const parcStr = parcelas > 1 ? `${parcelas}x ${fmt(g.valor/parcelas)}` : fmt(g.valor);
-    return `<tr>
+    return `<tr style="background:${idx%2===0?"#fff":"#f8fafc"}">
       <td>${formatDateBR(g.data)}</td>
       <td>${g.descricao}</td>
       <td>${catLabels[g.categoria]||g.categoria||"Outro"}</td>
@@ -1114,10 +1134,10 @@ function exportPDF(year) {
   const receitasAno = receitas
     .filter(r => new Date(r.data+"T00:00:00").getFullYear() === year)
     .sort((a,b) => a.data.localeCompare(b.data));
-  const receitasRows = receitasAno.map(r => {
+  const receitasRows = receitasAno.map((r, idx) => {
     const valorAtual = calcRendimento(r, todayStr);
     const rend = valorAtual - r.valor;
-    return `<tr>
+    return `<tr style="background:${idx%2===0?"#fff":"#f8fafc"}">
       <td>${formatDateBR(r.data)}</td>
       <td>${r.descricao}</td>
       <td>${r.reservaNome || (r.reserva ? "Caixinha" : "Conta Corrente")}</td>
@@ -1127,36 +1147,51 @@ function exportPDF(year) {
   }).join("");
 
   // Salário recebido no ano
+  let totalSalAno = 0;
   const salRows = months.map((mn, mi) => {
     const mKey = `${year}-${String(mi+1).padStart(2,"0")}`;
     const val  = getSalaryForMonth(mKey);
+    if (val > 0) totalSalAno += val;
     return val > 0
-      ? `<tr><td>${mn}</td><td style="text-align:right;color:#10b981;font-weight:600">${fmt(val)}</td></tr>`
+      ? `<tr style="background:${mi%2===0?"#fff":"#f8fafc"}">
+           <td>${mn}</td>
+           <td style="text-align:right;color:#3b82f6;font-weight:600">${fmt(val)}</td>
+         </tr>`
       : "";
   }).join("");
 
-  // ── Reservas / Caixinhas ────────────────────────────────────
-  const reservasRows = reservas.map(r => {
-    const rxs = receitas.filter(x => x.reservaNome === r.nome || x.reserva === r.id);
+  // ── Reservas / Caixinhas — rendimento projetado até fim do ano ──
+  const reservasRows = reservas.map((r, idx) => {
+    const rxs  = receitas.filter(x => x.reservaNome === r.nome || x.reserva === r.id);
     const dep  = rxs.reduce((s,x) => s + x.valor, 0);
-    const atual = rxs.reduce((s,x) => s + calcRendimento(x, todayStr), 0);
-    return `<tr>
-      <td>${r.nome}</td>
-      <td style="text-align:right">${r.rendimento ? fmtPct(r.rendimento)+"/dia" : "—"}</td>
+    // Calcular rendimento até yieldDate (fim do ano para relatórios passados/futuros, hoje para o atual)
+    const atual = rxs.reduce((s,x) => s + calcRendimento(x, yieldDate), 0);
+    const rendTotal = atual - dep;
+    const rendAnual = rxs.reduce((s,x) => {
+      // Rendimento gerado especificamente dentro do ano do relatório
+      const startOfYear = `${year}-01-01`;
+      const refInicio = x.data > startOfYear ? x.data : startOfYear;
+      const valInicio = calcRendimento(x, refInicio);
+      return s + (calcRendimento(x, yieldDate) - valInicio);
+    }, 0);
+    return `<tr style="background:${idx%2===0?"#fff":"#f8fafc"}">
+      <td><strong>${r.nome}</strong></td>
+      <td style="text-align:right">${r.rendimento ? fmtPct(r.rendimento)+"/dia útil" : "—"}</td>
       <td style="text-align:right;color:#10b981;font-weight:600">${fmt(dep)}</td>
-      <td style="text-align:right;color:#059669">${atual-dep > 0 ? "+"+fmt(atual-dep) : "—"}</td>
-      <td style="text-align:right;font-weight:700">${fmt(atual)}</td>
+      <td style="text-align:right;color:#059669;font-weight:600">${rendAnual > 0 ? "+"+fmt(rendAnual) : "—"}</td>
+      <td style="text-align:right;color:#059669">${rendTotal > 0 ? "+"+fmt(rendTotal) : "—"}</td>
+      <td style="text-align:right;font-weight:700;font-size:13px">${fmt(atual)}</td>
     </tr>`;
   }).join("");
 
   // ── Cartões ─────────────────────────────────────────────────
-  const cartoesRows = cartoes.map(c => {
+  const cartoesRows = cartoes.map((c, idx) => {
     let fat = 0;
     for (let m = 0; m < 12; m++) {
       const mKey = `${year}-${String(m+1).padStart(2,"0")}`;
       fat += calcFaturaCartao(c.id, mKey);
     }
-    return `<tr>
+    return `<tr style="background:${idx%2===0?"#fff":"#f8fafc"}">
       <td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${c.color};margin-right:6px;vertical-align:middle"></span>${c.nome}</td>
       <td>${c.titular || "—"}</td>
       <td style="text-align:right">${c.vencimento ? "Dia "+c.vencimento : "—"}</td>
@@ -1165,66 +1200,125 @@ function exportPDF(year) {
     </tr>`;
   }).join("");
 
+  // ── Ícones SVG para os cards de resumo ──────────────────────
+  const svgRec  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>`;
+  const svgGas  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>`;
+  const svgSald = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`;
+  const svgPoup = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z"/><path d="M12 6v6l4 2"/></svg>`;
+
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"/>
   <title>Relatório ${year} — Controle de Gastos</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    @page{size:A4;margin:15mm 12mm}
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Inter',Arial,sans-serif;color:#1e293b;background:#fff;padding:40px;font-size:12.5px;line-height:1.5}
-    .header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;padding-bottom:18px;border-bottom:3px solid #3b82f6}
-    .logo{font-size:22px;font-weight:800;color:#3b82f6}.logo-sub{color:#64748b;font-size:12px;margin-top:4px}
-    .header-right{text-align:right;color:#64748b;font-size:12px;line-height:1.7}
-    .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px}
-    .sbox{padding:14px 16px;border-radius:10px;border-left:4px solid}
-    .sbox.income{background:#f0fdf4;border-color:#10b981}.sbox.expense{background:#fef2f2;border-color:#ef4444}
-    .sbox.balance{background:#eff6ff;border-color:#3b82f6}.sbox.savings{background:#fffbeb;border-color:#f59e0b}
-    .sbox .label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#64748b;font-weight:600}
-    .sbox .value{font-size:20px;font-weight:800;margin-top:4px}
-    .income .value{color:#059669}.expense .value{color:#dc2626}.balance .value{color:#3b82f6}.savings .value{color:#d97706}
-    h2{font-size:13px;font-weight:700;margin:24px 0 10px;color:#1e293b;border-bottom:2px solid #e2e8f0;padding-bottom:6px}
-    table{width:100%;border-collapse:collapse;margin-bottom:4px;font-size:12px}
-    th{background:#3b82f6;color:#fff;padding:8px 10px;text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.04em}
+    body{font-family:'Inter',Arial,sans-serif;color:#1e293b;background:#fff;font-size:11px;line-height:1.5}
+    /* ── Header ── */
+    .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-bottom:14px;border-bottom:3px solid #3b82f6}
+    .logo{font-size:20px;font-weight:900;color:#0f172a;letter-spacing:-.5px}
+    .logo span{color:#3b82f6}
+    .logo-sub{color:#64748b;font-size:10.5px;margin-top:2px}
+    .header-right{text-align:right;color:#64748b;font-size:10.5px;line-height:1.8}
+    /* ── KPI Cards ── */
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px}
+    .kpi{border-radius:12px;padding:14px 14px 12px;position:relative;overflow:hidden;color:#fff}
+    .kpi.kpi-rec {background:linear-gradient(135deg,#059669,#10b981)}
+    .kpi.kpi-gas {background:linear-gradient(135deg,#dc2626,#ef4444)}
+    .kpi.kpi-sal {background:linear-gradient(135deg,#1d4ed8,#3b82f6)}
+    .kpi.kpi-poup{background:linear-gradient(135deg,${poupancaNum>=0?"#b45309,#f59e0b":"#7f1d1d,#dc2626"})}
+    .kpi-icon{width:28px;height:28px;background:rgba(255,255,255,.2);border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+    .kpi-icon svg{width:15px;height:15px;color:#fff;stroke:#fff}
+    .kpi-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;opacity:.85;margin-bottom:3px}
+    .kpi-value{font-size:17px;font-weight:900;letter-spacing:-.3px;line-height:1}
+    .kpi-sub{font-size:9px;opacity:.75;margin-top:4px}
+    .kpi-bg{position:absolute;right:-12px;bottom:-12px;width:60px;height:60px;background:rgba(255,255,255,.1);border-radius:50%}
+    .kpi-bg2{position:absolute;right:8px;bottom:8px;width:30px;height:30px;background:rgba(255,255,255,.08);border-radius:50%}
+    /* ── Sections ── */
+    h2{font-size:11.5px;font-weight:700;margin:18px 0 8px;color:#0f172a;display:flex;align-items:center;gap:5px;border-bottom:1.5px solid #e2e8f0;padding-bottom:5px}
+    h2 .pill{background:#3b82f6;color:#fff;font-size:9px;padding:1px 7px;border-radius:20px;font-weight:600;letter-spacing:.03em}
+    h2.red .pill{background:#ef4444}
+    h2.green .pill{background:#10b981}
+    h2.amber .pill{background:#f59e0b}
+    /* ── Tables ── */
+    table{width:100%;border-collapse:collapse;margin-bottom:4px;font-size:10.5px}
+    th{background:#0f172a;color:#f8fafc;padding:6px 9px;text-align:left;font-size:9.5px;font-weight:700;letter-spacing:.05em}
     th:not(:first-child){text-align:right}
-    td{padding:7px 10px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
-    tr:last-child td{border-bottom:none}
-    .trow td{background:#eff6ff;font-weight:700;border-top:2px solid #3b82f6}
-    .section{margin-bottom:24px}
-    .footer{margin-top:32px;text-align:center;font-size:10.5px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:12px}
-    .pb{page-break-before:always}
+    td{padding:6px 9px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+    .trow td{background:#eff6ff;font-weight:700;border-top:2px solid #3b82f6;font-size:11px}
+    /* ── Misc ── */
+    .section{margin-bottom:18px}
+    .badge{display:inline-block;padding:1px 6px;border-radius:20px;font-size:9px;font-weight:600}
+    .footer{margin-top:24px;text-align:center;font-size:9.5px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px}
+    .pb{page-break-before:always;padding-top:4mm}
     @media print{
-      body{padding:20px;font-size:11.5px}
-      th{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#3b82f6!important;color:#fff!important}
-      .sbox{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      body{font-size:10.5px}
+      .kpi{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      th{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#0f172a!important;color:#f8fafc!important}
+      .pb{page-break-before:always}
     }
   </style>
 </head>
 <body>
+  <!-- HEADER -->
   <div class="header">
-    <div><div class="logo">Controle de Gastos</div><div class="logo-sub">Relatório Financeiro Completo · ${year}</div></div>
-    <div class="header-right"><strong>${userName}</strong><br/>Gerado em ${now.toLocaleDateString("pt-BR")} às ${now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>
+    <div>
+      <div class="logo">Controle <span>de Gastos</span></div>
+      <div class="logo-sub">Relatório Financeiro Completo · Ano ${year}</div>
+    </div>
+    <div class="header-right">
+      <strong>${userName}</strong><br/>
+      Gerado em ${now.toLocaleDateString("pt-BR")} às ${now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}
+    </div>
   </div>
 
-  <div class="summary-grid">
-    <div class="sbox income"><div class="label">Total Recebido</div><div class="value">${fmt(totalRec)}</div></div>
-    <div class="sbox expense"><div class="label">Total Gasto</div><div class="value">${fmt(totalGas)}</div></div>
-    <div class="sbox balance"><div class="label">Saldo do Ano</div><div class="value" style="color:${totalSaldo<0?"#dc2626":"#3b82f6"}">${fmt(totalSaldo)}</div></div>
-    <div class="sbox savings"><div class="label">Taxa de Poupança</div><div class="value">${taxa}</div></div>
+  <!-- KPI CARDS -->
+  <div class="kpi-grid">
+    <div class="kpi kpi-rec">
+      <div class="kpi-icon">${svgRec}</div>
+      <div class="kpi-label">Total Recebido</div>
+      <div class="kpi-value">${fmt(totalRec)}</div>
+      <div class="kpi-sub">${totalSal>0?"incl. "+fmt(totalSal)+" em salário":receitas.filter(r=>new Date(r.data+"T00:00:00").getFullYear()===year).length+" entradas"}</div>
+      <div class="kpi-bg"></div><div class="kpi-bg2"></div>
+    </div>
+    <div class="kpi kpi-gas">
+      <div class="kpi-icon">${svgGas}</div>
+      <div class="kpi-label">Total Gasto</div>
+      <div class="kpi-value">${fmt(totalGas)}</div>
+      <div class="kpi-sub">${gastosAno.length} lançamentos no ano</div>
+      <div class="kpi-bg"></div><div class="kpi-bg2"></div>
+    </div>
+    <div class="kpi kpi-sal">
+      <div class="kpi-icon">${svgSald}</div>
+      <div class="kpi-label">Saldo do Ano</div>
+      <div class="kpi-value">${fmt(totalSaldo)}</div>
+      <div class="kpi-sub">${totalSaldo>=0?"✓ Resultado positivo":"⚠ Resultado negativo"}</div>
+      <div class="kpi-bg"></div><div class="kpi-bg2"></div>
+    </div>
+    <div class="kpi kpi-poup">
+      <div class="kpi-icon">${svgPoup}</div>
+      <div class="kpi-label">Taxa de Poupança</div>
+      <div class="kpi-value">${taxa}</div>
+      <div class="kpi-sub">${poupancaNum>=20?"🏆 Excelente":poupancaNum>=10?"👍 Boa":poupancaNum>=0?"📈 Regular":"📉 Negativa"}</div>
+      <div class="kpi-bg"></div><div class="kpi-bg2"></div>
+    </div>
   </div>
 
+  <!-- EXTRATO MENSAL -->
   <div class="section">
-    <h2>📅 Extrato Mensal</h2>
+    <h2>📅 Extrato Mensal <span class="pill">${year}</span></h2>
     <table>
-      <thead><tr><th>Mês</th><th>Receitas</th><th>Gastos</th><th>Saldo do Mês</th><th>Acumulado</th></tr></thead>
+      <thead><tr><th>Mês</th><th>Outras Receitas</th><th>Salário</th><th>Gastos</th><th>Saldo do Mês</th><th>Acumulado</th></tr></thead>
       <tbody>
         ${tableRows}
         <tr class="trow">
           <td>TOTAL ${year}</td>
-          <td style="text-align:right;color:#10b981">${fmt(totalRec)}</td>
+          <td style="text-align:right;color:#10b981">${fmt(totalRec - totalSal)}</td>
+          <td style="text-align:right;color:#3b82f6">${totalSal>0?fmt(totalSal):"—"}</td>
           <td style="text-align:right;color:#ef4444">${fmt(totalGas)}</td>
-          <td style="text-align:right;color:${totalSaldo<0?"#ef4444":"#10b981"}">${fmt(totalSaldo)}</td>
+          <td style="text-align:right;color:${totalSaldo<0?"#ef4444":"#059669"}">${fmt(totalSaldo)}</td>
           <td></td>
         </tr>
       </tbody>
@@ -1233,59 +1327,62 @@ function exportPDF(year) {
 
   ${catSorted.length > 0 ? `
   <div class="section">
-    <h2>🎯 Gastos por Categoria</h2>
-    <table style="width:60%">
-      <thead><tr><th>Categoria</th><th>Total</th><th>% dos Gastos</th></tr></thead>
+    <h2 class="red">🎯 Gastos por Categoria <span class="pill" style="background:#ef4444">${catSorted.length} categorias</span></h2>
+    <table style="width:70%">
+      <thead><tr><th>Categoria</th><th>Total</th><th style="text-align:right">Participação</th></tr></thead>
       <tbody>${catRows}</tbody>
     </table>
   </div>` : ""}
 
   ${salarioConfig?.ativo && salRows ? `
   <div class="section">
-    <h2>💰 Salário Recebido em ${year}</h2>
+    <h2 class="green">💰 Salário Recebido em ${year} <span class="pill" style="background:#3b82f6">Total: ${fmt(totalSalAno)}</span></h2>
     <table style="width:40%">
-      <thead><tr><th>Mês</th><th>Valor</th></tr></thead>
+      <thead><tr><th>Mês</th><th>Valor Recebido</th></tr></thead>
       <tbody>${salRows}</tbody>
     </table>
   </div>` : ""}
 
   ${reservas.length > 0 ? `
   <div class="section">
-    <h2>🏦 Caixinhas / Reservas (Saldo Atual)</h2>
+    <h2 class="green">🏦 Caixinhas / Reservas <span class="pill" style="background:#059669">Rendimento em ${year}</span></h2>
     <table>
-      <thead><tr><th>Nome</th><th>Rendimento</th><th>Depositado</th><th>Rendimentos</th><th>Saldo Atual</th></tr></thead>
+      <thead><tr><th>Nome</th><th>Taxa/dia útil</th><th>Total Depositado</th><th>Rendeu em ${year}</th><th>Rendimento Total</th><th>Saldo${year<=now.getFullYear()?" Atual":" Projetado"}</th></tr></thead>
       <tbody>${reservasRows}</tbody>
     </table>
   </div>` : ""}
 
   ${cartoes.length > 0 ? `
   <div class="section">
-    <h2>💳 Cartões de Crédito — Total Faturado em ${year}</h2>
+    <h2>💳 Cartões de Crédito — Faturado em ${year}</h2>
     <table>
       <thead><tr><th>Cartão</th><th>Titular</th><th>Vencimento</th><th>Limite</th><th>Total Faturado</th></tr></thead>
       <tbody>${cartoesRows}</tbody>
     </table>
   </div>` : ""}
 
+  <!-- PÁGINA 2: DETALHAMENTO -->
   <div class="section pb">
-    <h2>📥 Receitas Registradas em ${year}</h2>
+    <h2 class="green">📥 Receitas Registradas em ${year} <span class="pill" style="background:#10b981">${receitasAno.length} entradas</span></h2>
     ${receitasAno.length > 0 ? `
     <table>
       <thead><tr><th>Data</th><th>Descrição</th><th>Destino</th><th>Valor</th><th>Rendimento</th></tr></thead>
       <tbody>${receitasRows}</tbody>
-    </table>` : "<p style='color:#64748b;font-style:italic;padding:8px 0'>Nenhuma receita registrada neste período.</p>"}
+    </table>` : "<p style='color:#64748b;font-style:italic;padding:8px 0;font-size:10.5px'>Nenhuma receita registrada neste período.</p>"}
   </div>
 
   <div class="section">
-    <h2>📤 Todos os Gastos de ${year}</h2>
+    <h2 class="red">📤 Todos os Gastos de ${year} <span class="pill" style="background:#ef4444">${gastosAno.length} lançamentos</span></h2>
     ${gastosAno.length > 0 ? `
     <table>
       <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Pagamento</th><th>Parcelas</th><th>Total</th></tr></thead>
       <tbody>${gastosRows}</tbody>
-    </table>` : "<p style='color:#64748b;font-style:italic;padding:8px 0'>Nenhum gasto registrado neste período.</p>"}
+    </table>` : "<p style='color:#64748b;font-style:italic;padding:8px 0;font-size:10.5px'>Nenhum gasto registrado neste período.</p>"}
   </div>
 
-  <div class="footer">Controle de Gastos · Relatório gerado automaticamente · Dados protegidos pelo Firebase · ${now.getFullYear()}</div>
+  <div class="footer">
+    Controle de Gastos · Relatório gerado automaticamente em ${now.toLocaleDateString("pt-BR")} · Dados protegidos pelo Firebase
+  </div>
 </body></html>`;
 
   const win = window.open("", "_blank", "width=1050,height=850");
