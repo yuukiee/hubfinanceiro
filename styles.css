@@ -989,27 +989,68 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
 .anual-stat {
   flex: 1;
   min-width: 140px;
-  background: #e8f0fe;
-  border-radius: var(--radius-sm);
-  padding: 14px 18px;
-  border: 1px solid var(--border2);
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  border-radius: var(--radius);
+  padding: 18px 18px 16px;
+  border: 1px solid rgba(255,255,255,0.82);
+  border-bottom-color: rgba(180,210,255,0.30);
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(59,130,246,0.07), inset 0 1px 0 rgba(255,255,255,0.95);
+  transition: var(--trans);
 }
+.anual-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+
+.anual-stat::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+}
+.anual-stat.income::before     { background: var(--success); }
+.anual-stat.expense::before    { background: var(--danger); }
+.anual-stat.balance-pos::before{ background: var(--success); }
+.anual-stat.balance-neg::before{ background: var(--danger); }
+.anual-stat.savings::before    { background: var(--primary); }
+
+.anual-stat-icon {
+  width: 44px; height: 44px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; flex-shrink: 0;
+}
+.anual-stat.income  .anual-stat-icon { background: var(--success-bg); color: var(--success); }
+.anual-stat.expense .anual-stat-icon { background: var(--danger-bg);  color: var(--danger); }
+.anual-stat.balance-pos .anual-stat-icon { background: var(--success-bg); color: var(--success); }
+.anual-stat.balance-neg .anual-stat-icon { background: var(--danger-bg);  color: var(--danger); }
+.anual-stat.savings .anual-stat-icon { background: var(--primary-bg); color: var(--primary); }
+
+.anual-stat > div:last-child { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
 
 .anual-stat-label {
   font-size: .75rem;
   text-transform: uppercase;
   letter-spacing: .06em;
-  color: var(--text2);
+  color: var(--text3);
   font-weight: 600;
 }
 
 .anual-stat-value {
-  font-size: 1.25rem;
-  font-weight: 700;
+  font-size: 1.3rem;
+  font-weight: 800;
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.anual-stat-sub {
+  font-size: .75rem;
+  color: var(--text3);
+  display: block;
 }
 
 .anual-stat.income .anual-stat-value  { color: var(--success); }
@@ -1183,8 +1224,10 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
 
 @media(max-width:600px) {
   .anual-summary-row { gap: 8px; }
-  .anual-stat { min-width: 120px; padding: 10px 12px; }
-  .anual-stat-value { font-size: 1rem; }
+  .anual-stat { min-width: 140px; padding: 14px 12px; gap: 10px; }
+  .anual-stat-icon { width: 36px; height: 36px; font-size: .9rem; }
+  .anual-stat-value { font-size: 1.05rem; }
+  .anual-summary-row { gap: 8px; }
   .parcela-header-card { padding: 10px 12px; }
   .phc-row { flex-direction: column; }
   .phc-right { text-align: left; }

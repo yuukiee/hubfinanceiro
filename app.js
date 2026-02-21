@@ -230,10 +230,45 @@ function renderDashboard() {
 
   // Update UI
   document.getElementById("dash-saldo").textContent     = fmt(saldoTotal);
-  document.getElementById("dash-saldo-rendimento").textContent = `+${fmt(totalRendimentos)} em rendimentos`;
+  document.getElementById("dash-saldo-rendimento").textContent =
+    totalRendimentos > 0
+      ? `+${fmt(totalRendimentos)} em rendimentos`
+      : receitas.length > 0 ? `${receitas.length} ${receitas.length === 1 ? "entrada" : "entradas"} registradas` : "Nenhuma receita ainda";
+
   document.getElementById("dash-gastos").textContent    = fmt(gastosPrevistosAteFinsMes);
+  const gastosSub = document.getElementById("dash-gastos-previstos");
+  if (gastosSub) {
+    const nGastosMes = gastos.filter(g => {
+      const parcelas = g.parcelas || 1;
+      if (g.pagamento !== "cartao") return parcelas === 1 && monthKey(g.data) === mKey;
+      const cartao = cartoes.find(c => c.id === g.cartaoId);
+      for (let i = 0; i < parcelas; i++) if (getInstallmentBudgetMonth(g, cartao, i) === mKey) return true;
+      return false;
+    }).length;
+    gastosSub.textContent = nGastosMes > 0
+      ? `${nGastosMes} ${nGastosMes === 1 ? "lançamento" : "lançamentos"} no mês`
+      : "Nenhum gasto neste mês";
+  }
+
   document.getElementById("dash-livre").textContent     = fmt(saldoLivre);
+  const livreSub = document.getElementById("dash-livre-sub");
+  if (livreSub) {
+    const pctLivre = saldoTotal > 0 ? ((saldoLivre / saldoTotal) * 100) : 0;
+    livreSub.textContent = saldoLivre >= 0
+      ? `${pctLivre.toFixed(0)}% do saldo disponível`
+      : "Gastos acima do saldo";
+    livreSub.style.color = saldoLivre < 0 ? "var(--danger)" : "";
+  }
+
   document.getElementById("dash-pendente").textContent  = fmt(pendente);
+  const pendenteSub = document.getElementById("dash-pendente-sub");
+  if (pendenteSub) {
+    const nCartoesPendentes = cartoes.filter(c => !isFaturaVencida(c, mKey) && calcFaturaCartao(c.id, mKey) > 0).length;
+    pendenteSub.textContent = nCartoesPendentes > 0
+      ? `${nCartoesPendentes} ${nCartoesPendentes === 1 ? "cartão" : "cartões"} com fatura em aberto`
+      : pendente > 0 ? "Fatura a vencer este mês" : "Nenhuma fatura pendente";
+  }
+
   document.getElementById("dash-month").textContent     = now.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
   // Barra de orçamento
@@ -635,13 +670,36 @@ function renderChartCategorias(mKey) {
 
 // ─── RECEITAS ────────────────────────────────────────────────
 function renderReceitas() {
-  const totalRec   = receitas.reduce((s,r) => s + calcRendimento(r, today()), 0);
-  const totalRend  = receitas.reduce((s,r) => s + (calcRendimento(r, today()) - r.valor), 0);
-  const totalReser = receitas.filter(r => r.reserva).reduce((s,r) => s + calcRendimento(r, today()), 0);
+  const todayS     = today();
+  const totalRec   = receitas.reduce((s,r) => s + calcRendimento(r, todayS), 0);
+  const totalRend  = receitas.reduce((s,r) => s + (calcRendimento(r, todayS) - r.valor), 0);
+  const totalReser = receitas.filter(r => r.reserva).reduce((s,r) => s + calcRendimento(r, todayS), 0);
 
   document.getElementById("rec-total").textContent      = fmt(totalRec);
   document.getElementById("rec-rendimentos").textContent = fmt(totalRend);
   document.getElementById("rec-reservas").textContent   = fmt(totalReser);
+
+  // Subtextos dinâmicos
+  const recTotalSub = document.getElementById("rec-total-sub");
+  if (recTotalSub) {
+    recTotalSub.textContent = receitas.length > 0
+      ? `${receitas.length} ${receitas.length === 1 ? "entrada registrada" : "entradas registradas"}`
+      : "Nenhuma receita ainda";
+  }
+  const recRendSub = document.getElementById("rec-rendimentos-sub");
+  if (recRendSub) {
+    const comRendimento = receitas.filter(r => r.reserva && (r.rendimento || (reservas.find(x => x.nome === r.reservaNome) || {}).rendimento)).length;
+    recRendSub.textContent = comRendimento > 0
+      ? `${comRendimento} ${comRendimento === 1 ? "entrada" : "entradas"} rendendo`
+      : "Sem rendimentos ativos";
+  }
+  const recResSub = document.getElementById("rec-reservas-sub");
+  if (recResSub) {
+    const nReservadas = receitas.filter(r => r.reserva).length;
+    recResSub.textContent = nReservadas > 0
+      ? `em ${reservas.length} ${reservas.length === 1 ? "caixinha" : "caixinhas"}`
+      : "Nenhum valor separado";
+  }
 
   const sel = document.getElementById("filter-receita-mes");
   const mFilter = sel.value || monthKey(today());
@@ -773,12 +831,42 @@ async function deleteSalarioConfig() {
 // ─── GASTOS ──────────────────────────────────────────────────
 function renderGastos() {
   const totalG   = gastos.reduce((s,g) => s + g.valor, 0);
-  const cartaoG  = gastos.filter(g => g.pagamento === "cartao").reduce((s,g) => s + g.valor, 0);
+  const gastosCartao = gastos.filter(g => g.pagamento === "cartao");
+  const cartaoG  = gastosCartao.reduce((s,g) => s + g.valor, 0);
   const outrosG  = gastos.filter(g => g.pagamento !== "cartao").reduce((s,g) => s + g.valor, 0);
 
   document.getElementById("gasto-total").textContent  = fmt(totalG);
   document.getElementById("gasto-cartao").textContent = fmt(cartaoG);
   document.getElementById("gasto-outros").textContent = fmt(outrosG);
+
+  // Subtextos dinâmicos
+  const gastoTotalSub = document.getElementById("gasto-total-sub");
+  if (gastoTotalSub) {
+    gastoTotalSub.textContent = gastos.length > 0
+      ? `${gastos.length} ${gastos.length === 1 ? "lançamento" : "lançamentos"} no total`
+      : "Nenhum gasto ainda";
+  }
+  const gastoCartaoSub = document.getElementById("gasto-cartao-sub");
+  if (gastoCartaoSub) {
+    const parcelados = gastosCartao.filter(g => (g.parcelas || 1) > 1).length;
+    gastoCartaoSub.textContent = gastosCartao.length > 0
+      ? parcelados > 0 ? `${parcelados} ${parcelados === 1 ? "compra" : "compras"} parcelada${parcelados === 1 ? "" : "s"}` : `${gastosCartao.length} ${gastosCartao.length === 1 ? "compra" : "compras"} no cartão`
+      : "Sem compras no cartão";
+  }
+  const gastoOutrosSub = document.getElementById("gasto-outros-sub");
+  if (gastoOutrosSub) {
+    const nPix = gastos.filter(g => g.pagamento === "pix").length;
+    const nDin = gastos.filter(g => g.pagamento === "dinheiro").length;
+    if (nPix > 0 && nDin > 0) {
+      gastoOutrosSub.textContent = `${nPix} via Pix · ${nDin} em dinheiro`;
+    } else if (nPix > 0) {
+      gastoOutrosSub.textContent = `${nPix} ${nPix === 1 ? "transação" : "transações"} via Pix`;
+    } else if (nDin > 0) {
+      gastoOutrosSub.textContent = `${nDin} ${nDin === 1 ? "pagamento" : "pagamentos"} em dinheiro`;
+    } else {
+      gastoOutrosSub.textContent = "Sem pagamentos diretos";
+    }
+  }
 
   const sel     = document.getElementById("filter-gasto-mes");
   const selTipo = document.getElementById("filter-gasto-tipo");
@@ -1021,12 +1109,53 @@ function renderAnualReport(year) {
   const summaryEl = document.getElementById("anual-summary-cards");
   if (summaryEl) {
     const taxa = totalRec > 0 ? ((totalSaldo / totalRec) * 100).toFixed(1) + "%" : "—";
+    const taxaNum = totalRec > 0 ? (totalSaldo / totalRec) * 100 : 0;
+    const nRecAno = receitas.filter(r => new Date(r.data+"T00:00:00").getFullYear() === year).length;
+    const nGasAno = gastos.filter(g => {
+      const d = new Date(g.data+"T00:00:00");
+      if (d.getFullYear() === year) return true;
+      const parc = g.parcelas || 1;
+      if (parc > 1) { const c = cartoes.find(x => x.id === g.cartaoId); for (let i=0;i<parc;i++) if (getInstallmentBudgetMonth(g,c,i).startsWith(String(year))) return true; }
+      return false;
+    }).length;
+    const poupancaLabel = taxaNum >= 20 ? "Acima de 20% — ótimo resultado"
+      : taxaNum >= 10 ? "Entre 10% e 20% — bom ritmo"
+      : taxaNum >= 0  ? "Abaixo de 10% — dá pra melhorar"
+      : "Gastos maiores que as receitas";
     summaryEl.innerHTML = `
     <div class="anual-summary-row">
-      <div class="anual-stat income"><i class="fa-solid fa-arrow-down"></i><div><span class="anual-stat-label">Receitas ${year}</span><span class="anual-stat-value">${fmt(totalRec)}</span></div></div>
-      <div class="anual-stat expense"><i class="fa-solid fa-arrow-up"></i><div><span class="anual-stat-label">Gastos ${year}</span><span class="anual-stat-value">${fmt(totalGas)}</span></div></div>
-      <div class="anual-stat ${totalSaldo >= 0 ? "balance-pos" : "balance-neg"}"><i class="fa-solid fa-scale-balanced"></i><div><span class="anual-stat-label">Saldo do Ano</span><span class="anual-stat-value">${fmt(totalSaldo)}</span></div></div>
-      <div class="anual-stat savings"><i class="fa-solid fa-percent"></i><div><span class="anual-stat-label">Taxa de Poupança</span><span class="anual-stat-value">${taxa}</span></div></div>
+      <div class="anual-stat income">
+        <div class="anual-stat-icon"><i class="fa-solid fa-arrow-down"></i></div>
+        <div>
+          <span class="anual-stat-label">Receitas ${year}</span>
+          <span class="anual-stat-value">${fmt(totalRec)}</span>
+          <span class="anual-stat-sub">${nRecAno} ${nRecAno === 1 ? "entrada" : "entradas"} no ano</span>
+        </div>
+      </div>
+      <div class="anual-stat expense">
+        <div class="anual-stat-icon"><i class="fa-solid fa-arrow-up"></i></div>
+        <div>
+          <span class="anual-stat-label">Gastos ${year}</span>
+          <span class="anual-stat-value">${fmt(totalGas)}</span>
+          <span class="anual-stat-sub">${nGasAno} ${nGasAno === 1 ? "lançamento" : "lançamentos"} no ano</span>
+        </div>
+      </div>
+      <div class="anual-stat ${totalSaldo >= 0 ? "balance-pos" : "balance-neg"}">
+        <div class="anual-stat-icon"><i class="fa-solid fa-scale-balanced"></i></div>
+        <div>
+          <span class="anual-stat-label">Saldo do Ano</span>
+          <span class="anual-stat-value">${fmt(totalSaldo)}</span>
+          <span class="anual-stat-sub">${totalSaldo >= 0 ? "Resultado positivo" : "Resultado negativo"}</span>
+        </div>
+      </div>
+      <div class="anual-stat savings">
+        <div class="anual-stat-icon"><i class="fa-solid fa-piggy-bank"></i></div>
+        <div>
+          <span class="anual-stat-label">Taxa de Poupança</span>
+          <span class="anual-stat-value">${taxa}</span>
+          <span class="anual-stat-sub">${poupancaLabel}</span>
+        </div>
+      </div>
     </div>`;
   }
 }
