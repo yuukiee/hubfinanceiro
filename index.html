@@ -223,9 +223,14 @@
         <div class="card salary-config-card">
           <div class="card-header">
             <h3><i class="fa-solid fa-briefcase"></i> Salário Mensal Recorrente</h3>
-            <button class="btn-secondary" id="btn-config-salario" style="padding:8px 18px;font-size:.85rem">
-              <i class="fa-solid fa-gear"></i> Configurar
-            </button>
+            <div style="display:flex;gap:8px">
+              <button class="btn-secondary" id="btn-config-salario" style="padding:8px 18px;font-size:.85rem">
+                <i class="fa-solid fa-gear"></i> Configurar
+              </button>
+              <button class="icon-btn del" id="btn-delete-salario" title="Remover salário" style="display:none">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
           </div>
           <div id="salario-config-info">
             <div class="empty-state"><p>Nenhum salário mensal configurado ainda</p></div>

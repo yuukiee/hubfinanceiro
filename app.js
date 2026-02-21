@@ -534,10 +534,24 @@ function renderChartCategorias(mKey) {
   const ctx = document.getElementById("chart-categorias").getContext("2d");
   if (charts.categorias) charts.categorias.destroy();
 
-  const gastosMes = gastos.filter(g => monthKey(g.data) === mKey);
+  // Monta catMap considerando parcelas de cartão pelo mês de vencimento
   const catMap = {};
-  for (const g of gastosMes) {
-    catMap[g.categoria || "outro"] = (catMap[g.categoria || "outro"] || 0) + g.valor;
+  for (const g of gastos) {
+    const cat = g.categoria || "outro";
+    if (g.pagamento !== "cartao") {
+      if (monthKey(g.data) === mKey) {
+        catMap[cat] = (catMap[cat] || 0) + g.valor;
+      }
+    } else {
+      const cartao = cartoes.find(c => c.id === g.cartaoId);
+      const parcelas = g.parcelas || 1;
+      const valorParc = g.valor / parcelas;
+      for (let i = 0; i < parcelas; i++) {
+        if (getInstallmentDueMonth(g, cartao, i) === mKey) {
+          catMap[cat] = (catMap[cat] || 0) + valorParc;
+        }
+      }
+    }
   }
 
   const sorted = Object.entries(catMap).sort((a,b) => b[1]-a[1]);
@@ -614,7 +628,9 @@ function renderReceitas() {
 
 function renderSalarioConfig() {
   const el = document.getElementById("salario-config-info");
+  const btnDel = document.getElementById("btn-delete-salario");
   if (!el) return;
+  if (btnDel) btnDel.style.display = (salarioConfig && salarioConfig.valor) ? "" : "none";
   if (!salarioConfig || !salarioConfig.valor) {
     el.innerHTML = `<div class="empty-state"><p>Nenhum salário mensal configurado ainda</p></div>`;
     return;
@@ -673,6 +689,17 @@ async function saveSalarioConfig() {
     renderDashboard();
     renderRelatorios();
   } catch(e) { showToast("Erro ao salvar: " + e.message, "error"); }
+}
+
+async function deleteSalarioConfig() {
+  try {
+    await deleteDoc(salarioRef());
+    salarioConfig = null;
+    showToast("Salário removido!", "success");
+    renderSalarioConfig();
+    renderDashboard();
+    renderRelatorios();
+  } catch(e) { showToast("Erro ao remover: " + e.message, "error"); }
 }
 
 // ─── GASTOS ──────────────────────────────────────────────────
@@ -1644,10 +1671,9 @@ function bindUIEvents() {
   // Salário mensal
   document.getElementById("btn-config-salario")?.addEventListener("click", () => {
     if (salarioConfig) {
-      document.getElementById("sal-ativo").checked  = salarioConfig.ativo ?? true;
-      document.getElementById("sal-valor").value    = salarioConfig.valor || "";
-      document.getElementById("sal-dia").value      = salarioConfig.dia   || 5;
-      document.getElementById("sal-obs").value      = salarioConfig.obs   || "";
+      document.getElementById("sal-ativo").checked = salarioConfig.ativo ?? true;
+      document.getElementById("sal-valor").value   = salarioConfig.valor || "";
+      document.getElementById("sal-obs").value     = salarioConfig.obs   || "";
     } else {
       document.getElementById("form-salario").reset();
       document.getElementById("sal-ativo").checked = true;
@@ -1655,6 +1681,11 @@ function bindUIEvents() {
     openModal("modal-salario");
   });
   document.getElementById("btn-save-salario")?.addEventListener("click", saveSalarioConfig);
+  document.getElementById("btn-delete-salario")?.addEventListener("click", () => {
+    confirmCallback = deleteSalarioConfig;
+    document.getElementById("confirm-msg").textContent = "Remover o salário mensal configurado?";
+    openModal("modal-confirm");
+  });
 
   // Nova gasto
   document.getElementById("btn-add-gasto").addEventListener("click", () => { resetModalGasto(); openModal("modal-gasto"); });
