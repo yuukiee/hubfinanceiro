@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Preview — Controle de Gastos</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* ── PREVIEW BANNER ─────────────────────────────────── */
+    .preview-banner {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 9999;
+      background: #3b82f6;
+      color: #fff;
+      font-size: .78rem;
+      font-weight: 600;
+      text-align: center;
+      padding: 5px 12px;
+      letter-spacing: .02em;
+    }
+    .preview-banner i { margin-right: 6px; }
+    body { padding-top: 28px; }
+
+    /* abas de página no preview */
+    .preview-nav {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      display: flex;
+      gap: 4px;
+      /* Liquid Glass */
+      background: rgba(255,255,255,0.55);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(255,255,255,0.75);
+      border-bottom-color: rgba(200,220,255,0.4);
+      border-radius: 50px;
+      padding: 5px 8px;
+      box-shadow:
+        0 8px 32px rgba(59,130,246,0.14),
+        0 2px 8px rgba(59,130,246,0.08),
+        inset 0 1px 0 rgba(255,255,255,0.9),
+        inset 0 -1px 0 rgba(180,210,255,0.3);
+    }
+    .preview-nav button {
+      padding: 8px 20px;
+      border-radius: 44px;
+      font-size: .8rem;
+      font-weight: 600;
+      color: #4a6fa5;
+      background: none;
+      border: none;
+      cursor: pointer;
+      transition: all .22s cubic-bezier(.4,0,.2,1);
+      letter-spacing: .01em;
+      white-space: nowrap;
+    }
+    .preview-nav button.active {
+      background: rgba(59,130,246,0.90);
+      color: #fff;
+      box-shadow:
+        0 2px 10px rgba(59,130,246,0.35),
+        inset 0 1px 0 rgba(255,255,255,0.25);
+    }
+    .preview-nav button:hover:not(.active) {
+      background: rgba(59,130,246,0.10);
+      color: #1e3a5f;
+    }
+  </style>
+</head>
+<body>
+
+<!-- BANNER -->
+<div class="preview-banner">
+  <i class="fa-solid fa-eye"></i> MODO PREVIEW — Dados fictícios para visualização. Nenhuma conexão com Firebase.
+</div>
+
+<!-- APP SHELL -->
+<div id="app" class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <i class="fa-solid fa-wallet"></i>
+        <span>Controle de Gastos</span>
+      </div>
+    </div>
+
+    <div class="user-card">
+      <img
+        src="https://ui-avatars.com/api/?name=Gabriel+Silva&background=3b82f6&color=fff&size=80"
+        alt="foto" class="user-avatar"/>
+      <div class="user-info">
+        <span class="user-name">Gabriel Silva</span>
+        <span class="user-tag">Conta pessoal</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-preview-page="dashboard">
+        <i class="fa-solid fa-gauge-high"></i><span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item" data-preview-page="receitas">
+        <i class="fa-solid fa-arrow-trend-up"></i><span>Receitas</span>
+        <span class="nav-badge">4</span>
+      </a>
+      <a href="#" class="nav-item" data-preview-page="gastos">
+        <i class="fa-solid fa-arrow-trend-down"></i><span>Gastos</span>
+        <span class="nav-badge danger">12</span>
+      </a>
+      <a href="#" class="nav-item" data-preview-page="reservas">
+        <i class="fa-solid fa-piggy-bank"></i><span>Reservas</span>
+      </a>
+      <a href="#" class="nav-item" data-preview-page="cartoes">
+        <i class="fa-solid fa-credit-card"></i><span>Cartões</span>
+      </a>
+      <a href="#" class="nav-item" data-preview-page="relatorios">
+        <i class="fa-solid fa-chart-line"></i><span>Relatórios</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="logout-btn">
+        <i class="fa-solid fa-right-from-bracket"></i><span>Sair</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+
+    <!-- TOP BAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="breadcrumb">
+          <span id="preview-page-title">Dashboard</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="date-badge">
+          <i class="fa-regular fa-calendar"></i>
+          <span>21 de fevereiro de 2026</span>
+        </div>
+        <div class="notif-btn">
+          <i class="fa-regular fa-bell"></i>
+        </div>
+      </div>
+    </header>
+
+    <div class="pages">
+
+      <!-- ========== DASHBOARD ========== -->
+      <section class="page active" id="preview-dashboard">
+        <div class="page-header">
+          <h2>Visão Geral <span class="month-label">Fevereiro 2026</span></h2>
+          <div class="header-actions">
+            <select class="select-input">
+              <option>Fevereiro 2026</option>
+              <option>Janeiro 2026</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- SUMMARY CARDS -->
+        <div class="summary-grid">
+          <div class="summary-card income">
+            <div class="sc-icon"><i class="fa-solid fa-arrow-down"></i></div>
+            <div class="sc-info">
+              <span class="sc-label">Saldo Atual</span>
+              <span class="sc-value">R$ 8.432,90</span>
+              <span class="sc-sub">+R$ 127,40 em rendimentos</span>
+            </div>
+          </div>
+          <div class="summary-card expense">
+            <div class="sc-icon"><i class="fa-solid fa-arrow-up"></i></div>
+            <div class="sc-info">
+              <span class="sc-label">Gastos do Mês</span>
+              <span class="sc-value">R$ 3.210,55</span>
+              <span class="sc-sub">Previstos até fim do mês</span>
+            </div>
+          </div>
+          <div class="summary-card free">
+            <div class="sc-icon"><i class="fa-solid fa-wallet"></i></div>
+            <div class="sc-info">
+              <span class="sc-label">Saldo Livre</span>
+              <span class="sc-value">R$ 5.222,35</span>
+              <span class="sc-sub">Saldo - Gastos previstos</span>
+            </div>
+          </div>
+          <div class="summary-card pending">
+            <div class="sc-icon"><i class="fa-solid fa-clock"></i></div>
+            <div class="sc-info">
+              <span class="sc-label">A Pagar (Cartão)</span>
+              <span class="sc-value">R$ 1.850,00</span>
+              <span class="sc-sub">Vence em 5 dias</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- PROGRESS BAR -->
+        <div class="budget-tracker card">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-sliders"></i> Orçamento do Mês</h3>
+          </div>
+          <div class="budget-bar-container">
+            <div class="budget-labels">
+              <span>Gasto: <b>R$ 3.210,55</b></span>
+              <span>Disponível: <b>R$ 8.432,90</b></span>
+            </div>
+            <div class="budget-bar-bg">
+              <div class="budget-bar-fill" id="preview-budget-bar" style="width:38%"></div>
+            </div>
+            <div class="budget-percent">38% utilizado</div>
+          </div>
+        </div>
+
+        <!-- CHARTS -->
+        <div class="charts-row">
+          <div class="card chart-card">
+            <div class="card-header"><h3><i class="fa-solid fa-chart-bar"></i> Receitas vs Gastos</h3></div>
+            <canvas id="chart-receita-gasto" height="240"></canvas>
+          </div>
+          <div class="card chart-card">
+            <div class="card-header"><h3><i class="fa-solid fa-chart-pie"></i> Categorias de Gastos</h3></div>
+            <canvas id="chart-categorias" height="240"></canvas>
+          </div>
+        </div>
+
+        <!-- UPCOMING -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-calendar-days"></i> Vencimentos Próximos</h3>
+          </div>
+          <div class="upcoming-list">
+            <div class="upcoming-item">
+              <div class="upcoming-icon" style="background:rgba(239,68,68,.12);color:#ef4444"><i class="fa-solid fa-credit-card"></i></div>
+              <div class="upcoming-info"><span class="upcoming-name">Nubank</span><span class="upcoming-date">Vence em 3 dias</span></div>
+              <span class="upcoming-value">R$ 1.250,00</span>
+            </div>
+            <div class="upcoming-item">
+              <div class="upcoming-icon" style="background:rgba(245,158,11,.12);color:#f59e0b"><i class="fa-solid fa-house"></i></div>
+              <div class="upcoming-info"><span class="upcoming-name">Aluguel</span><span class="upcoming-date">Vence em 7 dias</span></div>
+              <span class="upcoming-value">R$ 1.400,00</span>
+            </div>
+            <div class="upcoming-item">
+              <div class="upcoming-icon" style="background:rgba(99,102,241,.12);color:#6366f1"><i class="fa-solid fa-wifi"></i></div>
+              <div class="upcoming-info"><span class="upcoming-name">Internet</span><span class="upcoming-date">Vence em 12 dias</span></div>
+              <span class="upcoming-value">R$ 99,90</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- RECENT -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-list"></i> Últimas Movimentações</h3>
+            <button class="btn-text">Ver todas</button>
+          </div>
+          <div class="transaction-list">
+            <div class="tx-row">
+              <div class="tx-icon" style="background:var(--danger-bg);color:var(--danger)"><i class="fa-solid fa-utensils"></i></div>
+              <div class="tx-info"><span class="tx-name">iFood — Jantar</span><div class="tx-meta"><span>Hoje, 20h12</span><span class="tx-badge expense">Alimentação</span><span class="tx-badge info">Cartão</span></div></div>
+              <div class="tx-right"><span class="tx-value expense">- R$ 48,90</span></div>
+            </div>
+            <div class="tx-row">
+              <div class="tx-icon" style="background:var(--success-bg);color:var(--success)"><i class="fa-solid fa-briefcase"></i></div>
+              <div class="tx-info"><span class="tx-name">Salário</span><div class="tx-meta"><span>19/02/2026</span><span class="tx-badge income">Receita</span></div></div>
+              <div class="tx-right"><span class="tx-value income">+ R$ 6.500,00</span></div>
+            </div>
+            <div class="tx-row">
+              <div class="tx-icon" style="background:var(--warning-bg);color:var(--warning)"><i class="fa-solid fa-car"></i></div>
+              <div class="tx-info"><span class="tx-name">Combustível</span><div class="tx-meta"><span>18/02/2026</span><span class="tx-badge expense">Transporte</span><span class="tx-badge info">Pix</span></div></div>
+              <div class="tx-right"><span class="tx-value expense">- R$ 230,00</span></div>
+            </div>
+            <div class="tx-row">
+              <div class="tx-icon" style="background:var(--primary-bg);color:var(--primary)"><i class="fa-solid fa-shirt"></i></div>
+              <div class="tx-info"><span class="tx-name">Zara — Roupas</span><div class="tx-meta"><span>17/02/2026</span><span class="tx-badge expense">Roupas</span></div></div>
+              <div class="tx-right"><span class="tx-value expense">- R$ 319,90</span></div>
+            </div>
+            <div class="tx-row">
+              <div class="tx-icon" style="background:rgba(124,58,237,.10);color:#7c3aed"><i class="fa-solid fa-seedling"></i></div>
+              <div class="tx-info"><span class="tx-name">Rendimento CDB</span><div class="tx-meta"><span>16/02/2026</span><span class="tx-badge yield">Rendimento</span></div></div>
+              <div class="tx-right"><span class="tx-value income">+ R$ 127,40</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== RECEITAS ========== -->
+      <section class="page hidden" id="preview-receitas">
+        <div class="page-header">
+          <h2>Receitas</h2>
+          <button class="btn-primary"><i class="fa-solid fa-plus"></i> Nova Receita</button>
+        </div>
+
+        <!-- SALÁRIO MENSAL -->
+        <div class="card salary-config-card">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-briefcase"></i> Salário Mensal Recorrente</h3>
+            <button class="btn-secondary" style="padding:8px 18px;font-size:.85rem">
+              <i class="fa-solid fa-gear"></i> Configurar
+            </button>
+          </div>
+          <div class="salary-info-row">
+            <div class="sal-item">
+              <span class="sal-label">Status</span>
+              <span class="sal-badge active">Ativo</span>
+            </div>
+            <div class="sal-item">
+              <span class="sal-label">Valor Mensal</span>
+              <span class="sal-value" style="font-size:1.1rem;font-weight:700;color:var(--success)">R$ 6.500,00</span>
+            </div>
+            <div class="sal-item">
+              <span class="sal-label">Dia de Recebimento</span>
+              <span class="sal-value">Todo dia <b>5</b></span>
+            </div>
+            <div class="sal-item">
+              <span class="sal-label">Próximo crédito</span>
+              <span class="sal-value">05/03/2026</span>
+            </div>
+            <div class="sal-item full">
+              <span class="sal-label">Fonte</span>
+              <span class="sal-value">Empresa XYZ Ltda.</span>
+            </div>
+          </div>
+        </div>
+        <div class="summary-grid small">
+          <div class="summary-card income">
+            <div class="sc-icon"><i class="fa-solid fa-coins"></i></div>
+            <div class="sc-info"><span class="sc-label">Total Recebido</span><span class="sc-value">R$ 6.627,40</span></div>
+          </div>
+          <div class="summary-card yield">
+            <div class="sc-icon"><i class="fa-solid fa-seedling"></i></div>
+            <div class="sc-info"><span class="sc-label">Total em Rendimentos</span><span class="sc-value">R$ 127,40</span></div>
+          </div>
+          <div class="summary-card reserve">
+            <div class="sc-icon"><i class="fa-solid fa-vault"></i></div>
+            <div class="sc-info"><span class="sc-label">Em Reservas</span><span class="sc-value">R$ 2.000,00</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Todas as Receitas</h3></div>
+          <div class="transaction-list">
+            <div class="tx-row">
+              <div class="tx-icon" style="background:var(--success-bg);color:var(--success)"><i class="fa-solid fa-briefcase"></i></div>
+              <div class="tx-info"><span class="tx-name">Salário — Empresa XYZ</span><div class="tx-meta"><span>05/02/2026</span><span class="tx-badge income">Receita</span></div></div>
+              <div class="tx-right"><span class="tx-value income">+ R$ 6.500,00</span></div>
+            </div>
+            <div class="tx-row">
+              <div class="tx-icon" style="background:rgba(124,58,237,.10);color:#7c3aed"><i class="fa-solid fa-seedling"></i></div>
+              <div class="tx-info"><span class="tx-name">Rendimento CDB</span><div class="tx-meta"><span>16/02/2026</span><span class="tx-badge yield">Rendimento</span></div></div>
+              <div class="tx-right"><span class="tx-value income">+ R$ 127,40</span></div>
+            </div>
+            <div class="tx-row">
+              <div class="tx-icon" style="background:var(--info-bg);color:var(--info)"><i class="fa-solid fa-laptop"></i></div>
+              <div class="tx-info"><span class="tx-name">Freelance — Site institucional</span><div class="tx-meta"><span>10/02/2026</span><span class="tx-badge income">Receita</span></div></div>
+              <div class="tx-right"><span class="tx-value income">+ R$ 800,00</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== GASTOS ========== -->
+      <section class="page hidden" id="preview-gastos">
+        <div class="page-header">
+          <h2>Gastos</h2>
+          <button class="btn-primary"><i class="fa-solid fa-plus"></i> Novo Gasto</button>
+        </div>
+        <div class="summary-grid small">
+          <div class="summary-card expense">
+            <div class="sc-icon"><i class="fa-solid fa-receipt"></i></div>
+            <div class="sc-info"><span class="sc-label">Total Gasto</span><span class="sc-value">R$ 3.210,55</span></div>
+          </div>
+          <div class="summary-card pending">
+            <div class="sc-icon"><i class="fa-solid fa-credit-card"></i></div>
+            <div class="sc-info"><span class="sc-label">Cartão Pendente</span><span class="sc-value">R$ 1.850,00</span></div>
+          </div>
+          <div class="summary-card info">
+            <div class="sc-icon"><i class="fa-brands fa-pix"></i></div>
+            <div class="sc-info"><span class="sc-label">Pix / Dinheiro</span><span class="sc-value">R$ 1.360,55</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3>Todos os Gastos</h3>
+            <div class="filter-row">
+              <select class="select-input small"><option>Fevereiro 2026</option></select>
+              <select class="select-input small"><option value="">Todos os tipos</option><option>Cartão</option><option>Pix</option></select>
+            </div>
+          </div>
+          <div class="transaction-list">
+            <div class="tx-row">
+              <div class="tx-icon" style="background:var(--danger-bg);color:var(--danger)"><i class="fa-solid fa-utensils"></i></div>
+              <div class="tx-info"><span class="tx-name">iFood — Jantar</span><div class="tx-meta"><span>21/02/2026</span><span class="tx-badge expense">Alimentação</span><span class="tx-badge info">Nubank</span></div></div>
+              <div class="tx-right"><span class="tx-value expense">- R$ 48,90</span></div>
+            </div>
+            <div class="tx-row">
+              <div class="tx-icon" style="background:var(--warning-bg);color:var(--warning)"><i class="fa-solid fa-car"></i></div>
+              <div class="tx-info"><span class="tx-name">Combustível</span><div class="tx-meta"><span>18/02/2026</span><span class="tx-badge expense">Transporte</span><span class="tx-badge info">Pix</span></div></div>
+              <div class="tx-right"><span class="tx-value expense">- R$ 230,00</span></div>
+            </div>
+            <div class="tx-row">
+              <div class="tx-icon" style="background:var(--primary-bg);color:var(--primary)"><i class="fa-solid fa-shirt"></i></div>
+              <div class="tx-info"><span class="tx-name">Zara — Roupas</span><div class="tx-meta"><span>17/02/2026</span><span class="tx-badge expense">Roupas</span><span class="tx-badge info">Nubank</span></div></div>
+              <div class="tx-right"><span class="tx-value expense">- R$ 319,90</span></div>
+            </div>
+            <div class="tx-row">
+              <div class="tx-icon" style="background:var(--warning-bg);color:var(--warning)"><i class="fa-solid fa-house"></i></div>
+              <div class="tx-info"><span class="tx-name">Aluguel</span><div class="tx-meta"><span>10/02/2026</span><span class="tx-badge expense">Moradia</span><span class="tx-badge info">Pix</span></div></div>
+              <div class="tx-right"><span class="tx-value expense">- R$ 1.400,00</span></div>
+            </div>
+            <div class="tx-row">
+              <div class="tx-icon" style="background:var(--info-bg);color:var(--info)"><i class="fa-solid fa-wifi"></i></div>
+              <div class="tx-info"><span class="tx-name">Internet — NET Combo</span><div class="tx-meta"><span>05/02/2026</span><span class="tx-badge expense">Moradia</span><span class="tx-badge info">Débito</span></div></div>
+              <div class="tx-right"><span class="tx-value expense">- R$ 99,90</span></div>
+            </div>
+            <div class="tx-row">
+              <div class="tx-icon" style="background:rgba(124,58,237,.10);color:#7c3aed"><i class="fa-solid fa-gamepad"></i></div>
+              <div class="tx-info"><span class="tx-name">PlayStation Plus</span><div class="tx-meta"><span>01/02/2026</span><span class="tx-badge expense">Lazer</span><span class="tx-badge info">Nubank</span></div></div>
+              <div class="tx-right"><span class="tx-value expense">- R$ 59,90</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== RESERVAS ========== -->
+      <section class="page hidden" id="preview-reservas">
+        <div class="page-header">
+          <h2>Reservas</h2>
+          <button class="btn-primary"><i class="fa-solid fa-plus"></i> Nova Reserva</button>
+        </div>
+        <div class="reservas-grid">
+          <!-- Reserva 1 -->
+          <div class="reserva-card">
+            <div class="reserva-header">
+              <div class="reserva-icon" style="background:rgba(5,150,105,.12);color:#059669;width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0">
+                <i class="fa-solid fa-shield-halved"></i>
+              </div>
+              <div class="reserva-title">
+                <h3>Reserva de Emergência</h3>
+                <span class="reserva-meta">Meta: R$ 10.000,00</span>
+              </div>
+            </div>
+            <div class="reserva-saldo" style="color:#059669">R$ 5.000,00</div>
+            <div class="reserva-progress">
+              <span>50% atingido</span>
+              <div class="budget-bar-bg"><div class="budget-bar-fill" style="width:50%;background:#059669"></div></div>
+            </div>
+          </div>
+          <!-- Reserva 2 -->
+          <div class="reserva-card">
+            <div class="reserva-header">
+              <div class="reserva-icon" style="background:rgba(2,132,199,.12);color:#0284c7;width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0">
+                <i class="fa-solid fa-plane"></i>
+              </div>
+              <div class="reserva-title">
+                <h3>Viagem Europa</h3>
+                <span class="reserva-meta">Meta: R$ 6.000,00</span>
+              </div>
+            </div>
+            <div class="reserva-saldo" style="color:#0284c7">R$ 2.000,00</div>
+            <div class="reserva-progress">
+              <span>33% atingido</span>
+              <div class="budget-bar-bg"><div class="budget-bar-fill" style="width:33%;background:#0284c7"></div></div>
+            </div>
+          </div>
+          <!-- Reserva 3 -->
+          <div class="reserva-card">
+            <div class="reserva-header">
+              <div class="reserva-icon" style="background:rgba(124,58,237,.12);color:#7c3aed;width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0">
+                <i class="fa-solid fa-gem"></i>
+              </div>
+              <div class="reserva-title">
+                <h3>Investimentos</h3>
+                <span class="reserva-meta">Meta: R$ 15.000,00</span>
+              </div>
+            </div>
+            <div class="reserva-saldo" style="color:#7c3aed">R$ 12.430,00</div>
+            <div class="reserva-progress">
+              <span>83% atingido</span>
+              <div class="budget-bar-bg"><div class="budget-bar-fill" style="width:83%;background:#7c3aed"></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== CARTÕES ========== -->
+      <section class="page hidden" id="preview-cartoes">
+        <div class="page-header">
+          <h2>Cartões de Crédito</h2>
+          <button class="btn-primary"><i class="fa-solid fa-plus"></i> Novo Cartão</button>
+        </div>
+        <div class="cartoes-grid">
+          <!-- Cartão 1 -->
+          <div class="cartao-card">
+            <div class="cartao-visual" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">
+              <div class="cartao-top">
+                <span class="cartao-name">Nubank</span>
+                <span class="cartao-chip"><i class="fa-brands fa-cc-visa"></i></span>
+              </div>
+              <div class="cartao-fatura">
+                <span class="cartao-fatura-label">Fatura atual</span>
+                <span class="cartao-fatura-val">R$ 1.850,00</span>
+              </div>
+              <div class="cartao-bottom">
+                <span>•••• •••• •••• 4321</span>
+                <span>Vence dia 5</span>
+              </div>
+            </div>
+            <div class="cartao-progress">
+              <div class="budget-labels">
+                <span>Utilizado: <b>R$ 1.850,00</b></span>
+                <span>Limite: <b>R$ 8.000,00</b></span>
+              </div>
+              <div class="budget-bar-bg">
+                <div class="budget-bar-fill" style="width:23%;background:linear-gradient(90deg,#6366f1,#818cf8)"></div>
+              </div>
+              <div class="budget-percent">23% do limite</div>
+            </div>
+            <div class="cartao-tx-list">
+              <h4>Últimas compras</h4>
+              <div class="cartao-tx"><span>iFood — Jantar</span><span style="color:var(--danger);font-weight:600">R$ 48,90</span></div>
+              <div class="cartao-tx"><span>Zara — Roupas</span><span style="color:var(--danger);font-weight:600">R$ 319,90</span></div>
+              <div class="cartao-tx"><span>PlayStation Plus</span><span style="color:var(--danger);font-weight:600">R$ 59,90</span></div>
+            </div>
+          </div>
+          <!-- Cartão 2 -->
+          <div class="cartao-card">
+            <div class="cartao-visual" style="background:linear-gradient(135deg,#0284c7,#0ea5e9)">
+              <div class="cartao-top">
+                <span class="cartao-name">Itaú Platinum</span>
+                <span class="cartao-chip"><i class="fa-brands fa-cc-mastercard"></i></span>
+              </div>
+              <div class="cartao-fatura">
+                <span class="cartao-fatura-label">Fatura atual</span>
+                <span class="cartao-fatura-val">R$ 430,00</span>
+              </div>
+              <div class="cartao-bottom">
+                <span>•••• •••• •••• 8879</span>
+                <span>Vence dia 15</span>
+              </div>
+            </div>
+            <div class="cartao-progress">
+              <div class="budget-labels">
+                <span>Utilizado: <b>R$ 430,00</b></span>
+                <span>Limite: <b>R$ 15.000,00</b></span>
+              </div>
+              <div class="budget-bar-bg">
+                <div class="budget-bar-fill" style="width:3%;background:linear-gradient(90deg,#0284c7,#38bdf8)"></div>
+              </div>
+              <div class="budget-percent">3% do limite</div>
+            </div>
+            <div class="cartao-tx-list">
+              <h4>Últimas compras</h4>
+              <div class="cartao-tx"><span>Farmácia São João</span><span style="color:var(--danger);font-weight:600">R$ 230,00</span></div>
+              <div class="cartao-tx"><span>Uber</span><span style="color:var(--danger);font-weight:600">R$ 200,00</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== RELATÓRIOS ========== -->
+      <section class="page hidden" id="preview-relatorios">
+        <div class="page-header">
+          <h2>Relatórios</h2>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-calendar"></i> Panorama Anual — 2026</h3>
+          </div>
+          <div class="anual-table-wrapper">
+            <table class="anual-table">
+              <thead>
+                <tr>
+                  <th>Mês</th>
+                  <th class="text-right">Receitas</th>
+                  <th class="text-right">Gastos</th>
+                  <th class="text-right">Saldo do Mês</th>
+                  <th class="text-right">Acumulado</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Janeiro</td><td class="text-right" style="color:var(--success)">R$ 7.300,00</td><td class="text-right" style="color:var(--danger)">R$ 2.890,00</td><td class="text-right" style="color:var(--success)">+ R$ 4.410,00</td><td class="text-right">R$ 4.410,00</td></tr>
+                <tr><td>Fevereiro</td><td class="text-right" style="color:var(--success)">R$ 7.427,40</td><td class="text-right" style="color:var(--danger)">R$ 3.210,55</td><td class="text-right" style="color:var(--success)">+ R$ 4.216,85</td><td class="text-right">R$ 8.626,85</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="charts-row">
+          <div class="card chart-card full-width">
+            <div class="card-header"><h3><i class="fa-solid fa-chart-line"></i> Evolução do Saldo (6 meses)</h3></div>
+            <canvas id="chart-evolucao" height="200"></canvas>
+          </div>
+        </div>
+        <div class="charts-row">
+          <div class="card chart-card">
+            <div class="card-header"><h3>Maiores Gastos por Categoria</h3></div>
+            <canvas id="chart-top-categorias" height="280"></canvas>
+          </div>
+          <div class="card chart-card">
+            <div class="card-header"><h3>Distribuição por Forma de Pagamento</h3></div>
+            <canvas id="chart-pagamento" height="280"></canvas>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- FLOATING NAV -->
+<div class="preview-nav">
+  <button class="active" data-preview-page="dashboard">Dashboard</button>
+  <button data-preview-page="receitas">Receitas</button>
+  <button data-preview-page="gastos">Gastos</button>
+  <button data-preview-page="reservas">Reservas</button>
+  <button data-preview-page="cartoes">Cartões</button>
+  <button data-preview-page="relatorios">Relatórios</button>
+</div>
+
+<script>
+  /* ── Navegação entre páginas ─────────────────── */
+  const pages   = ['dashboard','receitas','gastos','reservas','cartoes','relatorios'];
+  const titles  = { dashboard:'Dashboard', receitas:'Receitas', gastos:'Gastos', reservas:'Reservas', cartoes:'Cartões', relatorios:'Relatórios' };
+
+  function goTo(name) {
+    pages.forEach(p => {
+      document.getElementById('preview-' + p).classList.toggle('hidden', p !== name);
+      document.getElementById('preview-' + p).classList.toggle('active', p === name);
+    });
+    document.getElementById('preview-page-title').textContent = titles[name];
+
+    document.querySelectorAll('[data-preview-page]').forEach(el => {
+      el.classList.toggle('active', el.dataset.previewPage === name);
+    });
+
+    if (name === 'relatorios') renderRelatorioCharts();
+  }
+
+  document.querySelectorAll('[data-preview-page]').forEach(el => {
+    el.addEventListener('click', e => { e.preventDefault(); goTo(el.dataset.previewPage); });
+  });
+
+  /* ── Charts ──────────────────────────────────────────── */
+  const COLORS = {
+    primary: '#3b82f6', success: '#059669', danger: '#dc2626',
+    warning: '#d97706', info: '#0284c7', yield: '#7c3aed'
+  };
+  const gridColor = 'rgba(59,130,246,0.08)';
+  Chart.defaults.color = '#4a6fa5';
+  Chart.defaults.font.family = 'Inter';
+
+  /* Receitas vs Gastos */
+  new Chart(document.getElementById('chart-receita-gasto'), {
+    type: 'bar',
+    data: {
+      labels: ['Set', 'Out', 'Nov', 'Dez', 'Jan', 'Fev'],
+      datasets: [
+        { label: 'Receitas', data: [5800,6200,6100,8500,7300,7427], backgroundColor: COLORS.success + 'cc', borderRadius: 6 },
+        { label: 'Gastos',   data: [3100,3400,2900,5200,2890,3210], backgroundColor: COLORS.danger  + 'cc', borderRadius: 6 }
+      ]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { x: { grid: { color: gridColor } }, y: { grid: { color: gridColor } } } }
+  });
+
+  /* Categorias */
+  new Chart(document.getElementById('chart-categorias'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Moradia','Alimentação','Transporte','Roupas','Lazer','Outros'],
+      datasets: [{ data: [1400,680,430,320,260,120], backgroundColor: [COLORS.warning, COLORS.success, COLORS.info, COLORS.primary, COLORS.yield, '#64748b'], borderWidth: 0, hoverOffset: 8 }]
+    },
+    options: { responsive: true, cutout: '62%', plugins: { legend: { position: 'right' } } }
+  });
+
+  function renderRelatorioCharts() {
+    /* Evolução saldo */
+    if (!window._evolChart) {
+      window._evolChart = new Chart(document.getElementById('chart-evolucao'), {
+        type: 'line',
+        data: {
+          labels: ['Set','Out','Nov','Dez','Jan','Fev'],
+          datasets: [{ label: 'Saldo Acumulado', data: [1200,3900,7000,9600,14010,18226], borderColor: COLORS.primary, backgroundColor: COLORS.primary + '22', fill: true, tension: 0.4, pointBackgroundColor: COLORS.primary }]
+        },
+        options: { responsive: true, scales: { x: { grid: { color: gridColor } }, y: { grid: { color: gridColor } } } }
+      });
+    }
+    if (!window._topCatChart) {
+      window._topCatChart = new Chart(document.getElementById('chart-top-categorias'), {
+        type: 'bar', indexAxis: 'y',
+        data: {
+          labels: ['Moradia','Alimentação','Transporte','Roupas','Lazer'],
+          datasets: [{ data: [1400,680,430,320,260], backgroundColor: [COLORS.warning, COLORS.success, COLORS.info, COLORS.primary, COLORS.yield], borderRadius: 6 }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { color: gridColor } }, y: { grid: { color: gridColor } } } }
+      });
+    }
+    if (!window._pagChart) {
+      window._pagChart = new Chart(document.getElementById('chart-pagamento'), {
+        type: 'pie',
+        data: {
+          labels: ['Cartão','Pix','Dinheiro'],
+          datasets: [{ data: [1850,1160,200], backgroundColor: [COLORS.primary, COLORS.info, COLORS.success], borderWidth: 0, hoverOffset: 8 }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+      });
+    }
+  }
+</script>
+</body>
+</html>

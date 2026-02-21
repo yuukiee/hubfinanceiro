@@ -1126,7 +1126,7 @@ function renderAnualReport(year) {
     <div class="anual-summary-row">
       <div class="anual-stat income">
         <div class="anual-stat-icon"><i class="fa-solid fa-arrow-down"></i></div>
-        <div>
+        <div class="anual-stat-body">
           <span class="anual-stat-label">Receitas ${year}</span>
           <span class="anual-stat-value">${fmt(totalRec)}</span>
           <span class="anual-stat-sub">${nRecAno} ${nRecAno === 1 ? "entrada" : "entradas"} no ano</span>
@@ -1134,7 +1134,7 @@ function renderAnualReport(year) {
       </div>
       <div class="anual-stat expense">
         <div class="anual-stat-icon"><i class="fa-solid fa-arrow-up"></i></div>
-        <div>
+        <div class="anual-stat-body">
           <span class="anual-stat-label">Gastos ${year}</span>
           <span class="anual-stat-value">${fmt(totalGas)}</span>
           <span class="anual-stat-sub">${nGasAno} ${nGasAno === 1 ? "lançamento" : "lançamentos"} no ano</span>
@@ -1142,7 +1142,7 @@ function renderAnualReport(year) {
       </div>
       <div class="anual-stat ${totalSaldo >= 0 ? "balance-pos" : "balance-neg"}">
         <div class="anual-stat-icon"><i class="fa-solid fa-scale-balanced"></i></div>
-        <div>
+        <div class="anual-stat-body">
           <span class="anual-stat-label">Saldo do Ano</span>
           <span class="anual-stat-value">${fmt(totalSaldo)}</span>
           <span class="anual-stat-sub">${totalSaldo >= 0 ? "Resultado positivo" : "Resultado negativo"}</span>
@@ -1150,7 +1150,7 @@ function renderAnualReport(year) {
       </div>
       <div class="anual-stat savings">
         <div class="anual-stat-icon"><i class="fa-solid fa-piggy-bank"></i></div>
-        <div>
+        <div class="anual-stat-body">
           <span class="anual-stat-label">Taxa de Poupança</span>
           <span class="anual-stat-value">${taxa}</span>
           <span class="anual-stat-sub">${poupancaLabel}</span>

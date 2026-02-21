@@ -1028,7 +1028,7 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
 .anual-stat.balance-neg .anual-stat-icon { background: var(--danger-bg);  color: var(--danger); }
 .anual-stat.savings .anual-stat-icon { background: var(--primary-bg); color: var(--primary); }
 
-.anual-stat > div:last-child { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.anual-stat-body { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
 
 .anual-stat-label {
   font-size: .75rem;
