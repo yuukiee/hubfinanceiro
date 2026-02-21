@@ -527,6 +527,14 @@
               <input type="number" id="gas-parcelas" class="input" min="1" max="360" value="1" step="1" placeholder="1"/>
               <span id="gas-parcelas-preview" class="parcelas-preview-text"></span>
             </div>
+            <div class="form-group full" id="parcela-inicio-wrapper" style="display:none">
+              <label>
+                Mês de início das parcelas
+                <span class="input-hint" style="text-transform:none;letter-spacing:0">Deixe em branco para calcular automaticamente pela data da compra</span>
+              </label>
+              <input type="month" id="gas-parcela-inicio" class="input"/>
+              <span class="input-hint" style="margin-top:4px;display:block"><i class="fa-solid fa-circle-info"></i> Útil para compras antigas onde a 1ª parcela já está paga ou ocorreu em outro mês</span>
+            </div>
           </div>
         </div>
 
@@ -580,13 +588,17 @@
           <label>Nome do Cartão</label>
           <input type="text" id="cart-nome" placeholder="Ex: Nubank, Itaú Visa..." required/>
         </div>
-        <div class="form-group">
-          <label>Limite (R$)</label>
-          <input type="number" id="cart-limite" step="0.01" min="0" placeholder="0,00"/>
+        <div class="form-group full">
+          <label>Titular <span style="color:var(--text3);font-weight:400;font-size:.8rem">(opcional — deixe em branco se for seu)</span></label>
+          <input type="text" id="cart-titular" placeholder="Ex: Mãe, Empresa, João..."/>
         </div>
         <div class="form-group">
-          <label>Dia de Vencimento</label>
-          <input type="number" id="cart-vencimento" min="1" max="31" placeholder="Ex: 10" required/>
+          <label>Limite (R$) <span style="color:var(--text3);font-weight:400;font-size:.8rem">(opcional)</span></label>
+          <input type="number" id="cart-limite" step="0.01" min="0" placeholder="Sem limite definido"/>
+        </div>
+        <div class="form-group">
+          <label>Dia de Vencimento <span style="color:var(--text3);font-weight:400;font-size:.8rem">(opcional)</span></label>
+          <input type="number" id="cart-vencimento" min="1" max="31" placeholder="Deixe em branco se não souber"/>
         </div>
         <div class="form-group full">
           <label>Cor do Cartão</label>

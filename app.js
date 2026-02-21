@@ -298,8 +298,15 @@ function cartaoVencimentoMes(cartao, year, month) {
 }
 
 // Retorna o mês de vencimento (YYYY-MM) de uma parcela (índice 0-base)
-// Regra: compra feita APÓS o dia de vencimento do cartão → 1ª parcela no mês seguinte
+// Se gasto.parcelaInicio (YYYY-MM) estiver definido, usa-o como mês base da 1ª parcela
+// Caso contrário: regra padrão por data de compra vs dia de vencimento do cartão
 function getInstallmentDueMonth(gasto, cartao, index) {
+  if (gasto.parcelaInicio) {
+    // parcelaInicio = "YYYY-MM" → 1ª parcela nesse mês, demais seguem em sequência
+    const [y, m] = gasto.parcelaInicio.split("-").map(Number);
+    const d = new Date(y, m - 1 + index, 1);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+  }
   const purchaseDate = new Date(gasto.data + "T00:00:00");
   const purchaseDay  = purchaseDate.getDate();
   const dueDay       = cartao ? cartao.vencimento : 1;
@@ -852,18 +859,28 @@ function renderCartoes() {
     const mKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
     const fatura = calcFaturaCartao(c.id, mKey);
     const pct = c.limite > 0 ? Math.min((fatura / c.limite) * 100, 100) : 0;
-    const dia = c.vencimento;
-    const venc = new Date(now.getFullYear(), now.getMonth(), dia);
-    if (venc < now) venc.setMonth(venc.getMonth() + 1);
-    const daysLeft = Math.ceil((venc - now) / 86400000);
-    // Transações do cartão neste mês
+
+    // Vencimento: só calcular dias restantes se configurado
+    let vencInfo = "";
+    if (c.vencimento) {
+      const venc = new Date(now.getFullYear(), now.getMonth(), c.vencimento);
+      if (venc < now) venc.setMonth(venc.getMonth() + 1);
+      const daysLeft = Math.ceil((venc - now) / 86400000);
+      vencInfo = `Vence em ${daysLeft}d · Dia ${c.vencimento}`;
+    } else {
+      vencInfo = `<span style="opacity:.7">Sem vencimento definido</span>`;
+    }
+
     const txCartao = gastos.filter(g => g.pagamento === "cartao" && g.cartaoId === c.id && monthKey(g.data) === mKey);
 
     return `
     <div class="cartao-card">
       <div class="cartao-visual" style="background: linear-gradient(135deg, ${c.color}, ${adjustColor(c.color, -40)})">
         <div class="cartao-top">
-          <span class="cartao-name">${c.nome}</span>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span class="cartao-name">${c.nome}</span>
+            ${c.titular ? `<span class="cartao-titular"><i class="fa-solid fa-user" style="font-size:.7em"></i> ${c.titular}</span>` : ""}
+          </div>
           <i class="fa-solid fa-credit-card cartao-chip"></i>
         </div>
         <div class="cartao-fatura">
@@ -871,7 +888,7 @@ function renderCartoes() {
           <span class="cartao-fatura-val">${fmt(fatura)}</span>
         </div>
         <div class="cartao-bottom">
-          <span>Vence em ${daysLeft}d · Dia ${c.vencimento}</span>
+          <span>${vencInfo}</span>
           ${c.limite ? `<span>${fmt(c.limite - fatura)} disponível</span>` : ""}
         </div>
       </div>
@@ -1376,18 +1393,20 @@ async function saveReceita() {
 async function saveGasto() {
   const id     = document.getElementById("gas-edit-id").value;
   const temCredor = document.getElementById("gas-tem-credor").checked;
+  const parcelaInicioVal = document.getElementById("gas-parcela-inicio")?.value || "";
   const data   = {
-    descricao:  document.getElementById("gas-descricao").value.trim(),
-    valor:      parseFloat(document.getElementById("gas-valor").value),
-    data:       document.getElementById("gas-data").value,
-    categoria:  document.getElementById("gas-categoria").value,
-    pagamento:  document.getElementById("gas-pagamento").value,
-    cartaoId:   document.getElementById("gas-cartao-id").value || null,
-    parcelas:   parseInt(document.getElementById("gas-parcelas").value) || 1,
-    credor:     temCredor ? document.getElementById("gas-credor").value.trim() : "",
+    descricao:    document.getElementById("gas-descricao").value.trim(),
+    valor:        parseFloat(document.getElementById("gas-valor").value),
+    data:         document.getElementById("gas-data").value,
+    categoria:    document.getElementById("gas-categoria").value,
+    pagamento:    document.getElementById("gas-pagamento").value,
+    cartaoId:     document.getElementById("gas-cartao-id").value || null,
+    parcelas:     parseInt(document.getElementById("gas-parcelas").value) || 1,
+    parcelaInicio: parcelaInicioVal || null,
+    credor:       temCredor ? document.getElementById("gas-credor").value.trim() : "",
     credorContato: temCredor ? document.getElementById("gas-credor-contato").value.trim() : "",
-    obs:        document.getElementById("gas-obs").value.trim(),
-    updatedAt:  new Date().toISOString()
+    obs:          document.getElementById("gas-obs").value.trim(),
+    updatedAt:    new Date().toISOString()
   };
 
   if (!data.descricao || !data.valor || !data.data) { showToast("Preencha todos os campos obrigatórios", "error"); return; }
@@ -1412,11 +1431,12 @@ async function saveCartao() {
   const id  = document.getElementById("cart-edit-id").value;
   const data = {
     nome:       document.getElementById("cart-nome").value.trim(),
+    titular:    document.getElementById("cart-titular").value.trim(),
     limite:     parseFloat(document.getElementById("cart-limite").value) || 0,
-    vencimento: parseInt(document.getElementById("cart-vencimento").value),
+    vencimento: parseInt(document.getElementById("cart-vencimento").value) || 0,
     color:      document.getElementById("cart-color").value
   };
-  if (!data.nome || !data.vencimento) { showToast("Preencha nome e dia de vencimento", "error"); return; }
+  if (!data.nome) { showToast("Informe o nome do cartão", "error"); return; }
 
   try {
     if (id) {
@@ -1467,10 +1487,11 @@ window.editItem = async (tipo, id) => {
 window.editCartao = (id) => {
   const c = cartoes.find(x => x.id === id);
   if (!c) return;
-  document.getElementById("cart-edit-id").value = id;
+  document.getElementById("cart-edit-id").value    = id;
   document.getElementById("cart-nome").value       = c.nome;
+  document.getElementById("cart-titular").value    = c.titular || "";
   document.getElementById("cart-limite").value     = c.limite || "";
-  document.getElementById("cart-vencimento").value = c.vencimento;
+  document.getElementById("cart-vencimento").value = c.vencimento || "";
   document.getElementById("cart-color").value      = c.color || "#3b82f6";
   document.querySelectorAll("#cart-color-picker .color-opt").forEach(el => {
     el.classList.toggle("active", el.dataset.color === c.color);
@@ -1539,6 +1560,10 @@ function editGasto(id) {
     document.getElementById("cartao-fields").style.display = "block";
     populateCartaoSelect();
     document.getElementById("gas-cartao-id").value = g.cartaoId || "";
+    const inicioEl = document.getElementById("gas-parcela-inicio");
+    const wrapperEl = document.getElementById("parcela-inicio-wrapper");
+    if (inicioEl) inicioEl.value = g.parcelaInicio || "";
+    if (wrapperEl) wrapperEl.style.display = (g.parcelas > 1) ? "" : "none";
   } else {
     document.getElementById("cartao-fields").style.display = "none";
   }
@@ -1614,6 +1639,10 @@ function resetModalGasto() {
   document.getElementById("modal-gasto-title").innerHTML = '<i class="fa-solid fa-arrow-trend-down"></i> Novo Gasto';
   const prev = document.getElementById("gas-parcelas-preview");
   if (prev) prev.textContent = "";
+  const inicioEl = document.getElementById("gas-parcela-inicio");
+  const wrapperEl = document.getElementById("parcela-inicio-wrapper");
+  if (inicioEl) inicioEl.value = "";
+  if (wrapperEl) wrapperEl.style.display = "none";
   populateCartaoSelect();
 }
 
@@ -1706,17 +1735,21 @@ function bindUIEvents() {
   document.getElementById("btn-add-gasto").addEventListener("click", () => { resetModalGasto(); openModal("modal-gasto"); });
   document.getElementById("btn-save-gasto").addEventListener("click", saveGasto);
 
-  // Parcelas: prévia do valor por parcela
+  // Parcelas: prévia do valor por parcela + mostrar campo de início
   const updateParcelasPreview = () => {
     const valor = parseFloat(document.getElementById("gas-valor")?.value) || 0;
     const parc  = parseInt(document.getElementById("gas-parcelas")?.value)  || 1;
     const prev  = document.getElementById("gas-parcelas-preview");
+    const wrapperEl = document.getElementById("parcela-inicio-wrapper");
     if (!prev) return;
     if (valor > 0 && parc > 0) {
       prev.textContent = parc === 1
         ? `à vista — ${fmt(valor)}`
         : `${parc}x de ${fmt(valor / parc)} = ${fmt(valor)}`;
     } else { prev.textContent = ""; }
+    // Só mostra o campo de início de parcelas quando há mais de 1 parcela e é cartão
+    const isCartao = document.getElementById("gas-pagamento")?.value === "cartao";
+    if (wrapperEl) wrapperEl.style.display = (parc > 1 && isCartao) ? "" : "none";
   };
   document.getElementById("gas-valor")?.addEventListener("input", updateParcelasPreview);
   document.getElementById("gas-parcelas")?.addEventListener("input", updateParcelasPreview);
@@ -1784,7 +1817,15 @@ function bindUIEvents() {
       document.querySelectorAll(".pay-tab").forEach(t => t.classList.remove("active"));
       tab.classList.add("active");
       document.getElementById("gas-pagamento").value = tab.dataset.pay;
-      document.getElementById("cartao-fields").style.display = tab.dataset.pay === "cartao" ? "block" : "none";
+      const isCartao = tab.dataset.pay === "cartao";
+      document.getElementById("cartao-fields").style.display = isCartao ? "block" : "none";
+      // Esconder início de parcelas se não for cartão
+      if (!isCartao) {
+        const w = document.getElementById("parcela-inicio-wrapper");
+        if (w) w.style.display = "none";
+      } else {
+        updateParcelasPreview();
+      }
     });
   });
 
