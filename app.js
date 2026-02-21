@@ -932,7 +932,7 @@ window.openGerenciarParcelas = (gastoId) => {
   html += `<div class="parcelas-progress">
     <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:.85rem">
       <span>${pagas} de ${parcelas} parcelas ${pagas === parcelas ? "pagas ✓" : "pagas"}</span>
-      <span style="font-weight:700;color:${pagas===parcelas?"var(--success)":"var(--danger)'}">${fmt(valorParcela * (parcelas - pagas))} restante</span>
+      <span style="font-weight:700;color:${pagas===parcelas?"var(--success)":"var(--danger)"}">${fmt(valorParcela * (parcelas - pagas))} restante</span>
     </div>
     <div class="budget-bar-bg"><div class="budget-bar-fill" style="width:${pct}%;background:${pagas===parcelas?"var(--success)":"var(--primary)"}"></div></div>
   </div>`;
