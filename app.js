@@ -293,8 +293,10 @@ function renderDashboard() {
 
 function calcRendimento(receita, upToDate) {
   // Taxa: própria da receita (legado) OU da caixinha vinculada
+  // Nota: receita.reserva é boolean (true/false); receita.reservaNome é o nome da caixinha
   let taxa = receita.rendimento || 0;
   if (!taxa && receita.reserva && receita.reservaNome) {
+    // Busca a caixinha pelo nome para obter a taxa de rendimento
     const res = reservas.find(r => r.nome === receita.reservaNome);
     if (res) taxa = res.rendimento || 0;
   }
@@ -1264,21 +1266,48 @@ function exportPDF(year) {
     </tr>`;
   }).join("");
 
-  // ── Receitas do ano ─────────────────────────────────────────
+  // ── Receitas do ano (inclui salário como linhas sintéticas) ───
   const receitasAno = receitas
     .filter(r => new Date(r.data+"T00:00:00").getFullYear() === year)
     .sort((a,b) => a.data.localeCompare(b.data));
-  const receitasRows = receitasAno.map((r, idx) => {
-    const valorAtual = calcRendimento(r, yieldDate);
-    const rend = valorAtual - r.valor;
-    return `<tr style="background:${idx%2===0?"#fff":"#f8fafc"}">
-      <td>${formatDateBR(r.data)}</td>
-      <td>${r.descricao}</td>
-      <td>${r.reservaNome || (r.reserva ? "Caixinha" : "Conta Corrente")}</td>
-      <td style="text-align:right;color:#10b981;font-weight:600">${fmt(r.valor)}</td>
-      <td style="text-align:right;color:#059669">${rend > 0 ? "+"+fmt(rend) : "—"}</td>
-    </tr>`;
-  }).join("");
+
+  // Linhas de salário: uma por mês do ano (provis\u00e3o)
+  const salarioLinhas = [];
+  if (salarioConfig && salarioConfig.ativo && salarioConfig.valor) {
+    for (let mi = 0; mi < 12; mi++) {
+      const isFutSal = year > now.getFullYear() || (year === now.getFullYear() && mi > now.getMonth());
+      // Para anos passados: inclui todos. Para ano atual: inclui até o mês atual + futuros como previsão
+      salarioLinhas.push({ mi, isFut: isFutSal });
+    }
+  }
+
+  const receitasRows = [
+    // Receitas manuais
+    ...receitasAno.map((r, idx) => {
+      const valorAtual = calcRendimento(r, yieldDate);
+      const rend = valorAtual - r.valor;
+      return `<tr style="background:${idx%2===0?"#fff":"#f8fafc"}">
+        <td>${formatDateBR(r.data)}</td>
+        <td>${r.descricao}</td>
+        <td>${r.reservaNome || (r.reserva ? "Caixinha" : "Conta Corrente")}</td>
+        <td style="text-align:right;color:#10b981;font-weight:600">${fmt(r.valor)}</td>
+        <td style="text-align:right;color:#059669">${rend > 0 ? "+"+fmt(rend) : "—"}</td>
+      </tr>`;
+    }),
+    // Linhas de salário
+    ...salarioLinhas.map(({ mi, isFut }) => {
+      // Data sintética: último dia útil do mês
+      const payDate = lastBusinessDayOfMonth(year, mi + 1);
+      const payStr = `${year}-${String(mi+1).padStart(2,"0")}-${String(payDate.getDate()).padStart(2,"0")}`;
+      return `<tr style="background:#eff6ff${isFut?";opacity:.7":""}">
+        <td>${formatDateBR(payStr)}${isFut?" <em style='color:#94a3b8;font-size:9px'>(prev.)</em>":""}</td>
+        <td>${salarioConfig.obs || "Salário Mensal"} <span style="background:#dbeafe;color:#1d4ed8;font-size:9px;padding:1px 5px;border-radius:4px;font-weight:600">Salário</span></td>
+        <td>Conta Corrente</td>
+        <td style="text-align:right;color:#3b82f6;font-weight:600">${fmt(salarioConfig.valor)}</td>
+        <td style="text-align:right;color:#64748b">—</td>
+      </tr>`;
+    })
+  ].join("");
 
   // Salário recebido no ano
   let totalSalAno = 0;
@@ -1295,27 +1324,32 @@ function exportPDF(year) {
       : "";
   }).join("");
 
-  // ── Reservas / Caixinhas — rendimento projetado até fim do ano ──
+  // ── Reservas / Caixinhas — rendimento projetado até 31/dez do ano ──
   const reservasRows = reservas.map((r, idx) => {
-    const rxs  = receitas.filter(x => x.reservaNome === r.nome || x.reserva === r.id);
+    // Receitas vinculadas: x.reserva é boolean true, x.reservaNome é o nome da caixinha
+    const rxs = receitas.filter(x => x.reserva === true && x.reservaNome === r.nome);
     const dep  = rxs.reduce((s,x) => s + x.valor, 0);
-    // Calcular rendimento até yieldDate (fim do ano para relatórios passados/futuros, hoje para o atual)
-    const atual = rxs.reduce((s,x) => s + calcRendimento(x, yieldDate), 0);
+    // Saldo projetado até 31/dez
+    const atual = dep > 0 ? rxs.reduce((s,x) => s + calcRendimento(x, yieldDate), 0) : 0;
     const rendTotal = atual - dep;
-    const rendAnual = rxs.reduce((s,x) => {
-      // Rendimento gerado especificamente dentro do ano do relatório
-      const startOfYear = `${year}-01-01`;
-      const refInicio = x.data > startOfYear ? x.data : startOfYear;
-      const valInicio = calcRendimento(x, refInicio);
-      return s + (calcRendimento(x, yieldDate) - valInicio);
-    }, 0);
+    // Rendimento gerado especificamente dentro do ano do relatório
+    const startOfYear = `${year}-01-01`;
+    const rendAnual = dep > 0 ? rxs.reduce((s,x) => {
+      // Valor da receita no início do ano (ou na data do depósito, se posterior a 01/jan)
+      const refInicio = x.data >= startOfYear ? x.data : startOfYear;
+      const valInicio = x.data >= startOfYear
+        ? x.valor                              // depositado no próprio ano: base = valor original
+        : calcRendimento(x, startOfYear);      // depositado antes: base = saldo em 01/jan
+      const valFim = calcRendimento(x, yieldDate);
+      return s + Math.max(0, valFim - valInicio);
+    }, 0) : 0;
     return `<tr style="background:${idx%2===0?"#fff":"#f8fafc"}">
       <td><strong>${r.nome}</strong></td>
       <td style="text-align:right">${r.rendimento ? fmtPct(r.rendimento)+"/dia útil" : "—"}</td>
-      <td style="text-align:right;color:#10b981;font-weight:600">${fmt(dep)}</td>
-      <td style="text-align:right;color:#059669;font-weight:600">${rendAnual > 0 ? "+"+fmt(rendAnual) : "—"}</td>
-      <td style="text-align:right;color:#059669">${rendTotal > 0 ? "+"+fmt(rendTotal) : "—"}</td>
-      <td style="text-align:right;font-weight:700;font-size:13px">${fmt(atual)}</td>
+      <td style="text-align:right;color:#10b981;font-weight:600">${dep > 0 ? fmt(dep) : "—"}</td>
+      <td style="text-align:right;color:#059669;font-weight:600">${rendAnual > 0.005 ? "+"+fmt(rendAnual) : (r.rendimento ? "<em style='color:#94a3b8'>sem depósito</em>" : "—")}</td>
+      <td style="text-align:right;color:#059669">${rendTotal > 0.005 ? "+"+fmt(rendTotal) : "—"}</td>
+      <td style="text-align:right;font-weight:700;font-size:13px">${atual > 0 ? fmt(atual) : fmt(dep)}</td>
     </tr>`;
   }).join("");
 
@@ -1498,8 +1532,8 @@ function exportPDF(year) {
 
   <!-- PÁGINA 2: DETALHAMENTO -->
   <div class="section pb">
-    <h2 class="green">📥 Receitas Registradas em ${year} <span class="pill" style="background:#10b981">${receitasAno.length} entradas</span></h2>
-    ${receitasAno.length > 0 ? `
+    <h2 class="green">📥 Receitas Registradas em ${year} <span class="pill" style="background:#10b981">${receitasAno.length + salarioLinhas.length} entradas</span></h2>
+    ${receitasAno.length > 0 || salarioLinhas.length > 0 ? `
     <table>
       <thead><tr><th>Data</th><th>Descrição</th><th>Destino</th><th>Valor</th><th>Rendimento</th></tr></thead>
       <tbody>${receitasRows}</tbody>
