@@ -419,13 +419,6 @@
           <label>Data de Recebimento</label>
           <input type="date" id="rec-data" required/>
         </div>
-        <div class="form-group full">
-          <label>Rendimento Diário (%)</label>
-          <div class="input-hint-row">
-            <input type="number" id="rec-rendimento" step="0.001" min="0" placeholder="0.000" />
-            <span class="input-hint">Aplicado apenas em dias úteis (Seg–Sex)</span>
-          </div>
-        </div>
         <div class="form-group full toggle-group">
           <label class="toggle-label">
             <span>Valor em Reserva?</span>
@@ -439,11 +432,29 @@
             <select id="rec-reserva-nome" class="select-input"></select>
           </div>
         </div>
+        <div id="transferir-caixinha-wrapper" class="hidden form-group full">
+          <div class="transfer-box">
+            <div class="transfer-box-info">
+              <i class="fa-solid fa-vault transfer-box-icon"></i>
+              <div>
+                <strong>Transferir para Caixinha</strong>
+                <span>Vincule esta receita a uma reserva e ela passará a render pela taxa da caixinha</span>
+              </div>
+            </div>
+            <div class="transfer-box-fields">
+              <select id="rec-transferir-reserva" class="select-input"></select>
+              <button type="button" class="btn-transfer" id="btn-confirmar-transferir">
+                <i class="fa-solid fa-arrow-right-to-bracket"></i> Transferir
+              </button>
+            </div>
+          </div>
+        </div>
         <div class="form-group full">
           <label>Observações</label>
           <textarea id="rec-obs" placeholder="Opcional..." rows="2"></textarea>
         </div>
         <input type="hidden" id="rec-edit-id"/>
+        <input type="hidden" id="rec-rendimento" value=""/>
       </form>
     </div>
     <div class="modal-footer">
@@ -614,6 +625,13 @@
           <input type="number" id="res-meta" step="0.01" min="0" placeholder="0,00"/>
         </div>
         <div class="form-group">
+          <label>Rendimento Diário (%)</label>
+          <div class="input-hint-row">
+            <input type="number" id="res-rendimento" step="0.001" min="0" placeholder="0.000"/>
+            <span class="input-hint">Dias úteis (Seg–Sex)</span>
+          </div>
+        </div>
+        <div class="form-group">
           <label>Ícone</label>
           <select id="res-icone" class="select-input">
             <option value="piggy-bank">🐷 Porquinho</option>
@@ -726,7 +744,7 @@
       <button class="modal-close" data-modal="modal-salario"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body">
-      <p style="color:var(--text2);font-size:.88rem;margin-bottom:16px">Configure um valor recebido mensalmente. Ele é somado no dashboard a partir do dia de recebimento de cada mês, e contabilizado em todos os meses no relatório anual.</p>
+      <p style="color:var(--text2);font-size:.88rem;margin-bottom:16px">Configure um valor recebido mensalmente. O pagamento é contabilizado a partir do <strong>último dia útil de cada mês</strong> (segunda a sexta-feira).</p>
       <form id="form-salario" class="form-grid">
         <div class="form-group full toggle-group">
           <label class="toggle-label">
@@ -737,18 +755,15 @@
             </div>
           </label>
         </div>
-        <div class="form-group">
+        <div class="form-group full">
           <label>Valor (R$)</label>
           <input type="number" id="sal-valor" step="0.01" min="0.01" placeholder="0,00"/>
-        </div>
-        <div class="form-group">
-          <label>Dia de recebimento</label>
-          <input type="number" id="sal-dia" min="1" max="31" value="5"/>
         </div>
         <div class="form-group full">
           <label>Descrição / Fonte (opcional)</label>
           <input type="text" id="sal-obs" placeholder="Ex: Salário empresa XYZ"/>
         </div>
+        <input type="hidden" id="sal-dia" value="0"/>
       </form>
     </div>
     <div class="modal-footer">

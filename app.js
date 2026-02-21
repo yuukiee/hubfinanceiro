@@ -159,14 +159,24 @@ async function loadSalarioConfig() {
   } catch { salarioConfig = null; }
 }
 
+// Retorna o último dia útil (Seg–Sex) de um mês
+function lastBusinessDayOfMonth(year, month) {
+  // month: 1-based
+  let d = new Date(year, month, 0); // último dia do mês
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+  return d; // objeto Date
+}
+
 // Retorna o valor do salário que deve ser contabilizado em um dado mês (YYYY-MM)
 function getSalaryForMonth(mKey) {
   if (!salarioConfig || !salarioConfig.ativo || !salarioConfig.valor) return 0;
+  const [y, m] = mKey.split("-").map(Number);
   const now = new Date();
-  const curMKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
-  if (mKey < curMKey) return salarioConfig.valor;   // mês passado — já recebido
-  if (mKey === curMKey) return now.getDate() >= salarioConfig.dia ? salarioConfig.valor : 0;
-  return salarioConfig.valor;                        // mês futuro — previsto
+  now.setHours(0, 0, 0, 0);
+  const payDate = lastBusinessDayOfMonth(y, m);
+  payDate.setHours(0, 0, 0, 0);
+  // Só contabiliza se o dia de pagamento já chegou ou passou
+  return now >= payDate ? salarioConfig.valor : 0;
 }
 
 // ─── Render Geral ─────────────────────────────────────────────
@@ -247,12 +257,18 @@ function renderDashboard() {
 }
 
 function calcRendimento(receita, upToDate) {
-  if (!receita.rendimento || receita.rendimento <= 0) return receita.valor;
+  // Taxa: própria da receita (legado) OU da caixinha vinculada
+  let taxa = receita.rendimento || 0;
+  if (!taxa && receita.reserva && receita.reservaNome) {
+    const res = reservas.find(r => r.nome === receita.reservaNome);
+    if (res) taxa = res.rendimento || 0;
+  }
+  if (!taxa || taxa <= 0) return receita.valor;
   const start = receita.data;
   if (start >= upToDate) return receita.valor;
   const bd = businessDaysBetween(start, upToDate);
   // Rendimento composto diário
-  return receita.valor * Math.pow(1 + receita.rendimento / 100, bd);
+  return receita.valor * Math.pow(1 + taxa / 100, bd);
 }
 
 function calcFaturaCartao(cartaoId, mKey) {
@@ -458,13 +474,43 @@ function renderChartReceitaGasto(year) {
   const recData = Array(12).fill(0);
   const gasData = Array(12).fill(0);
 
+  // Receitas: valor original (sem rendimento) por mês de recebimento
   for (const r of receitas) {
     const d = new Date(r.data + "T00:00:00");
     if (d.getFullYear() === year) recData[d.getMonth()] += r.valor;
   }
+
+  // Salário: adicionar em cada mês do ano apenas se o dia de pagamento já ocorreu
+  if (salarioConfig && salarioConfig.ativo && salarioConfig.valor) {
+    const now = new Date();
+    now.setHours(0,0,0,0);
+    for (let mo = 1; mo <= 12; mo++) {
+      const payDate = lastBusinessDayOfMonth(year, mo);
+      payDate.setHours(0,0,0,0);
+      const mKey = `${year}-${String(mo).padStart(2,"0")}`;
+      // Inclui meses passados e o atual se pagamento já ocorreu; exclui futuros
+      if (now >= payDate) recData[mo - 1] += salarioConfig.valor;
+    }
+  }
+
+  // Gastos: distribuir parcelas cartao pelo mês de vencimento; pix/dinheiro pela data de compra
   for (const g of gastos) {
-    const d = new Date(g.data + "T00:00:00");
-    if (d.getFullYear() === year) gasData[d.getMonth()] += g.valor;
+    if (g.pagamento !== "cartao") {
+      const d = new Date(g.data + "T00:00:00");
+      if (d.getFullYear() === year) gasData[d.getMonth()] += g.valor;
+    } else {
+      const cartao = cartoes.find(c => c.id === g.cartaoId);
+      const parcelas = g.parcelas || 1;
+      const valorParc = g.valor / parcelas;
+      for (let i = 0; i < parcelas; i++) {
+        const dueKey = getInstallmentDueMonth(g, cartao, i); // "YYYY-MM"
+        const [dy] = dueKey.split("-").map(Number);
+        if (dy === year) {
+          const mo = parseInt(dueKey.split("-")[1]) - 1; // 0-indexed
+          gasData[mo] += valorParc;
+        }
+      }
+    }
   }
 
   charts.receitaGasto = new Chart(ctx, {
@@ -574,9 +620,15 @@ function renderSalarioConfig() {
     return;
   }
   const now = new Date();
-  const dia = salarioConfig.dia || 1;
-  const recebidoEsteMes = now.getDate() >= dia;
-  const proximoPag = new Date(now.getFullYear(), now.getMonth() + (recebidoEsteMes ? 1 : 0), dia);
+  now.setHours(0,0,0,0);
+  // Pagamento: último dia útil do mês atual
+  const pagEstesMes = lastBusinessDayOfMonth(now.getFullYear(), now.getMonth() + 1);
+  pagEstesMes.setHours(0,0,0,0);
+  const recebidoEsteMes = now >= pagEstesMes;
+  // Próximo pagamento: último dia útil do próximo mês se já recebeu este
+  const proximoPagBase = recebidoEsteMes
+    ? lastBusinessDayOfMonth(now.getFullYear(), now.getMonth() + 2)
+    : pagEstesMes;
   el.innerHTML = `
     <div class="salary-info-row">
       <div class="sal-item">
@@ -584,20 +636,20 @@ function renderSalarioConfig() {
         <span class="sal-value income-cell">${fmt(salarioConfig.valor)}</span>
       </div>
       <div class="sal-item">
-        <span class="sal-label"><i class="fa-solid fa-calendar-day"></i> Dia de Recebimento</span>
-        <span class="sal-value">Todo dia <b>${dia}</b></span>
+        <span class="sal-label"><i class="fa-solid fa-calendar-day"></i> Data de Pagamento</span>
+        <span class="sal-value">Último dia útil do mês<br><small style="color:var(--text3)">${pagEstesMes.toLocaleDateString("pt-BR")}</small></span>
       </div>
       <div class="sal-item">
         <span class="sal-label"><i class="fa-solid fa-clock"></i> Este mês</span>
         <span class="sal-value ${recebidoEsteMes ? "income-cell" : ""}">
           ${recebidoEsteMes
             ? `<i class="fa-solid fa-check-circle"></i> Recebido`
-            : `<i class="fa-solid fa-hourglass-half"></i> Aguardando (dia ${dia})`}
+            : `<i class="fa-solid fa-hourglass-half"></i> Aguardando (${pagEstesMes.toLocaleDateString("pt-BR")})`}
         </span>
       </div>
       <div class="sal-item">
         <span class="sal-label"><i class="fa-solid fa-calendar-check"></i> Próximo pagamento</span>
-        <span class="sal-value">${proximoPag.toLocaleDateString("pt-BR")}</span>
+        <span class="sal-value">${proximoPagBase.toLocaleDateString("pt-BR")}</span>
       </div>
       ${salarioConfig.obs ? `<div class="sal-item full"><span class="sal-label"><i class="fa-solid fa-note-sticky"></i> Fonte</span><span class="sal-value">${salarioConfig.obs}</span></div>` : ""}
       <div class="sal-item" style="align-items:flex-end">
@@ -610,13 +662,11 @@ function renderSalarioConfig() {
 async function saveSalarioConfig() {
   const ativo = document.getElementById("sal-ativo").checked;
   const valor = parseFloat(document.getElementById("sal-valor").value);
-  const dia   = parseInt(document.getElementById("sal-dia").value);
   const obs   = document.getElementById("sal-obs").value.trim();
   if (!valor || valor <= 0) { showToast("Informe um valor válido", "error"); return; }
-  if (!dia || dia < 1 || dia > 31) { showToast("Dia de recebimento inválido (1-31)", "error"); return; }
   try {
-    await setDoc(salarioRef(), { valor, dia, obs, ativo, atualizadoEm: new Date().toISOString() });
-    salarioConfig = { valor, dia, obs, ativo };
+    await setDoc(salarioRef(), { valor, obs, ativo, atualizadoEm: new Date().toISOString() });
+    salarioConfig = { valor, obs, ativo };
     showToast("Salário mensal configurado!", "success");
     closeModal("modal-salario");
     renderSalarioConfig();
@@ -729,6 +779,7 @@ function renderReservas() {
         <div class="reserva-title">
           <h3>${res.nome}</h3>
           ${res.meta ? `<span class="reserva-meta">Meta: ${fmt(res.meta)}</span>` : ""}
+          ${res.rendimento ? `<span class="tx-badge yield"><i class="fa-solid fa-seedling"></i> ${fmtPct(res.rendimento)}/dia</span>` : ""}
         </div>
         <div class="reserva-actions">
           <button class="icon-btn edit" onclick="editReserva('${res.id}')"><i class="fa-solid fa-pen"></i></button>
@@ -1343,10 +1394,11 @@ async function saveCartao() {
 async function saveReserva() {
   const id  = document.getElementById("res-edit-id").value;
   const data = {
-    nome:   document.getElementById("res-nome").value.trim(),
-    meta:   parseFloat(document.getElementById("res-meta").value) || 0,
-    icone:  document.getElementById("res-icone").value,
-    cor:    document.getElementById("res-color").value
+    nome:       document.getElementById("res-nome").value.trim(),
+    meta:       parseFloat(document.getElementById("res-meta").value) || 0,
+    rendimento: parseFloat(document.getElementById("res-rendimento").value) || 0,
+    icone:      document.getElementById("res-icone").value,
+    cor:        document.getElementById("res-color").value
   };
   if (!data.nome) { showToast("Informe o nome da reserva", "error"); return; }
 
@@ -1387,11 +1439,12 @@ window.editCartao = (id) => {
 window.editReserva = (id) => {
   const r = reservas.find(x => x.id === id);
   if (!r) return;
-  document.getElementById("res-edit-id").value = id;
-  document.getElementById("res-nome").value    = r.nome;
-  document.getElementById("res-meta").value    = r.meta || "";
-  document.getElementById("res-icone").value   = r.icone;
-  document.getElementById("res-color").value   = r.cor || "#10b981";
+  document.getElementById("res-edit-id").value   = id;
+  document.getElementById("res-nome").value      = r.nome;
+  document.getElementById("res-meta").value      = r.meta || "";
+  document.getElementById("res-rendimento").value = r.rendimento || "";
+  document.getElementById("res-icone").value     = r.icone;
+  document.getElementById("res-color").value     = r.cor || "#10b981";
   document.querySelectorAll("#res-color-picker .color-opt").forEach(el => {
     el.classList.toggle("active", el.dataset.color === r.cor);
   });
@@ -1412,6 +1465,13 @@ function editReceita(id) {
     document.getElementById("reserva-select-wrapper").classList.remove("hidden");
     populateReservaSelect();
     document.getElementById("rec-reserva-nome").value = r.reservaNome || "";
+    document.getElementById("transferir-caixinha-wrapper").classList.add("hidden");
+  } else {
+    document.getElementById("reserva-select-wrapper").classList.add("hidden");
+    // Mostrar opção de transferir para caixinha ao editar
+    const wrapper = document.getElementById("transferir-caixinha-wrapper");
+    wrapper.classList.remove("hidden");
+    populateTransferirSelect();
   }
   document.getElementById("modal-receita-title").innerHTML = '<i class="fa-solid fa-pen"></i> Editar Receita';
   openModal("modal-receita");
@@ -1494,6 +1554,7 @@ function resetModalReceita() {
   document.getElementById("form-receita").reset();
   document.getElementById("rec-edit-id").value = "";
   document.getElementById("reserva-select-wrapper").classList.add("hidden");
+  document.getElementById("transferir-caixinha-wrapper").classList.add("hidden");
   document.getElementById("modal-receita-title").innerHTML = '<i class="fa-solid fa-arrow-trend-up"></i> Nova Receita';
   populateReservaSelect();
 }
@@ -1518,6 +1579,19 @@ function populateReservaSelect() {
   const sel = document.getElementById("rec-reserva-nome");
   sel.innerHTML = `<option value="">Selecione uma reserva</option>` +
     reservas.map(r => `<option value="${r.nome}">${r.nome}</option>`).join("");
+}
+
+function populateTransferirSelect() {
+  const sel = document.getElementById("rec-transferir-reserva");
+  if (reservas.length === 0) {
+    sel.innerHTML = `<option value="">Nenhuma caixinha criada</option>`;
+    return;
+  }
+  sel.innerHTML = `<option value="">Selecione a caixinha...</option>` +
+    reservas.map(r => {
+      const taxa = r.rendimento ? ` — ${fmtPct(r.rendimento)}/dia` : "";
+      return `<option value="${r.nome}">${r.nome}${taxa}</option>`;
+    }).join("");
 }
 
 function populateCartaoSelect() {
@@ -1620,7 +1694,28 @@ function bindUIEvents() {
   // Toggle reserva no modal receita
   document.getElementById("rec-reserva").addEventListener("change", e => {
     document.getElementById("reserva-select-wrapper").classList.toggle("hidden", !e.target.checked);
+    document.getElementById("transferir-caixinha-wrapper").classList.toggle("hidden", e.target.checked);
     if (e.target.checked) populateReservaSelect();
+  });
+
+  // Botão confirmar transferência para caixinha
+  document.getElementById("btn-confirmar-transferir").addEventListener("click", async () => {
+    const id       = document.getElementById("rec-edit-id").value;
+    const reserva  = document.getElementById("rec-transferir-reserva").value;
+    if (!id)     { showToast("Salve a receita primeiro", "warning"); return; }
+    if (!reserva){ showToast("Selecione uma caixinha", "warning"); return; }
+    try {
+      await updateDoc(doc(receitasRef(), id), {
+        reserva: true,
+        reservaNome: reserva,
+        rendimento: 0,          // taxa agora é da caixinha
+        updatedAt: new Date().toISOString()
+      });
+      showToast(`Transferido para "${reserva}" com sucesso!`, "success");
+      closeModal("modal-receita");
+      await loadReceitas();
+      renderAll();
+    } catch (e) { showToast("Erro ao transferir: " + e.message, "error"); }
   });
 
   // Toggle credor no modal gasto

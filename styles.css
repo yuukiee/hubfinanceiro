@@ -705,6 +705,65 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
 .input-hint-row input { flex: 1; }
 .input-hint { font-size: .75rem; color: var(--text3); white-space: nowrap; }
 
+/* ── TRANSFERIR PARA CAIXINHA ────────────────────────────────── */
+.transfer-box {
+  background: linear-gradient(135deg, rgba(59,130,246,0.07), rgba(59,130,246,0.03));
+  border: 1.5px dashed rgba(59,130,246,0.35);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.transfer-box-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.transfer-box-icon {
+  font-size: 1.4rem;
+  color: var(--primary);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.transfer-box-info > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.transfer-box-info strong {
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.transfer-box-info span {
+  font-size: .75rem;
+  color: var(--text2);
+  line-height: 1.4;
+}
+.transfer-box-fields {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.transfer-box-fields .select-input { flex: 1; }
+.btn-transfer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--trans);
+}
+.btn-transfer:hover { background: var(--primary-h); transform: translateY(-1px); }
+
 /* ── TOGGLE ─────────────────────────────────────────────────── */
 .toggle-group .toggle-label {
   display: flex; align-items: center; justify-content: space-between;
