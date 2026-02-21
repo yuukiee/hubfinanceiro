@@ -1205,48 +1205,79 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
 }
 
 /* ── SALARY CONFIG CARD ──────────────────────────────────────── */
-.salary-config-card .empty-state {
-  padding: 20px 0;
-}
+.salary-config-card .empty-state { padding: 20px 0; }
 
-.salary-info-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
-  padding: 4px 0 8px;
+.sal-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(135deg, rgba(5,150,105,0.07), rgba(59,130,246,0.05));
+  border: 1.5px solid rgba(5,150,105,0.18);
+  border-radius: 14px;
+  padding: 16px 18px;
 }
-
-.sal-item {
+.sal-banner-icon {
+  width: 50px; height: 50px;
+  border-radius: 13px;
+  background: rgba(5,150,105,0.12);
+  color: var(--success);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+.sal-banner-body {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  min-width: 0;
 }
-
-.sal-item.full { grid-column: 1 / -1; }
-
-.sal-label {
-  font-size: .73rem;
-  text-transform: uppercase;
-  letter-spacing: .05em;
-  color: var(--text3);
-  font-weight: 600;
+.sal-banner-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
-
-.sal-value {
-  font-size: .95rem;
-  color: var(--text);
-  font-weight: 500;
+.sal-banner-valor {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--success);
+  letter-spacing: -.01em;
 }
-
+.sal-banner-meta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.sal-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: .79rem;
+  color: var(--text2);
+}
+.sal-meta-item i { color: var(--primary); font-size: .72rem; }
+.sal-banner-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  align-items: center;
+}
 .sal-badge {
-  display: inline-block;
-  padding: 3px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
   border-radius: 99px;
-  font-size: .75rem;
+  font-size: .72rem;
   font-weight: 700;
   letter-spacing: .04em;
   text-transform: uppercase;
 }
-
 .sal-badge.active   { background: var(--success-bg); color: var(--success); }
 .sal-badge.inactive { background: var(--danger-bg);  color: var(--danger); }
+
+@media (max-width: 480px) {
+  .sal-banner { flex-wrap: wrap; }
+  .sal-banner-actions { width: 100%; justify-content: flex-end; }
+}

@@ -602,16 +602,22 @@ function renderReceitas() {
   list.innerHTML = filtered.map(r => {
     const valorAtual = calcRendimento(r, today());
     const rendimento = valorAtual - r.valor;
+    // Taxa efetiva: própria da receita ou do cofrinho vinculado
+    let taxaEfetiva = r.rendimento || 0;
+    if (!taxaEfetiva && r.reserva && r.reservaNome) {
+      const res = reservas.find(x => x.nome === r.reservaNome);
+      if (res) taxaEfetiva = res.rendimento || 0;
+    }
     return `
     <div class="tx-row">
       <div class="tx-icon"><i class="fa-solid fa-arrow-down" style="color:#10b981"></i></div>
       <div class="tx-info">
         <span class="tx-name">${r.descricao}</span>
         <span class="tx-meta">${formatDateBR(r.data)}
-          ${r.rendimento ? `<span class="tx-badge yield"><i class="fa-solid fa-seedling"></i> ${fmtPct(r.rendimento)}/dia</span>` : ""}
+          ${taxaEfetiva ? `<span class="tx-badge yield"><i class="fa-solid fa-seedling"></i> ${fmtPct(taxaEfetiva)}/dia</span>` : ""}
           ${r.reserva ? `<span class="tx-badge reserve"><i class="fa-solid fa-vault"></i> ${r.reservaNome || "Reserva"}</span>` : ""}
         </span>
-        ${r.rendimento ? `<span class="tx-yield">Rendimento acumulado: +${fmt(rendimento)}</span>` : ""}
+        ${taxaEfetiva ? `<span class="tx-yield">Rendimento acumulado: +${fmt(rendimento)}</span>` : ""}
         ${r.obs ? `<span class="tx-obs">${r.obs}</span>` : ""}
       </div>
       <div class="tx-right">
@@ -630,50 +636,59 @@ function renderSalarioConfig() {
   const el = document.getElementById("salario-config-info");
   const btnDel = document.getElementById("btn-delete-salario");
   if (!el) return;
-  if (btnDel) btnDel.style.display = (salarioConfig && salarioConfig.valor) ? "" : "none";
+  // Esconder o botão header de excluir — os controles agora ficam dentro do card
+  if (btnDel) btnDel.style.display = "none";
   if (!salarioConfig || !salarioConfig.valor) {
     el.innerHTML = `<div class="empty-state"><p>Nenhum salário mensal configurado ainda</p></div>`;
     return;
   }
   const now = new Date();
   now.setHours(0,0,0,0);
-  // Pagamento: último dia útil do mês atual
   const pagEstesMes = lastBusinessDayOfMonth(now.getFullYear(), now.getMonth() + 1);
   pagEstesMes.setHours(0,0,0,0);
   const recebidoEsteMes = now >= pagEstesMes;
-  // Próximo pagamento: último dia útil do próximo mês se já recebeu este
-  const proximoPagBase = recebidoEsteMes
+  const proximoPag = recebidoEsteMes
     ? lastBusinessDayOfMonth(now.getFullYear(), now.getMonth() + 2)
     : pagEstesMes;
   el.innerHTML = `
-    <div class="salary-info-row">
-      <div class="sal-item">
-        <span class="sal-label"><i class="fa-solid fa-money-bill-wave"></i> Valor Mensal</span>
-        <span class="sal-value income-cell">${fmt(salarioConfig.valor)}</span>
+    <div class="sal-banner">
+      <div class="sal-banner-icon">
+        <i class="fa-solid fa-briefcase"></i>
       </div>
-      <div class="sal-item">
-        <span class="sal-label"><i class="fa-solid fa-calendar-day"></i> Data de Pagamento</span>
-        <span class="sal-value">Último dia útil do mês<br><small style="color:var(--text3)">${pagEstesMes.toLocaleDateString("pt-BR")}</small></span>
+      <div class="sal-banner-body">
+        <div class="sal-banner-top">
+          <span class="sal-banner-valor">${fmt(salarioConfig.valor)}<small style="font-size:.7em;font-weight:500;color:var(--text2)">/mês</small></span>
+          <span class="sal-badge ${salarioConfig.ativo ? "active" : "inactive"}">
+            <i class="fa-solid fa-${salarioConfig.ativo ? "circle-check" : "circle-xmark"}"></i>
+            ${salarioConfig.ativo ? "Ativo" : "Inativo"}
+          </span>
+        </div>
+        <div class="sal-banner-meta">
+          <span class="sal-meta-item"><i class="fa-solid fa-calendar-check"></i>
+            ${recebidoEsteMes
+              ? `<span style="color:var(--success)">Recebido este mês</span>`
+              : `Próximo: <b>${pagEstesMes.toLocaleDateString("pt-BR")}</b>`}
+          </span>
+          <span class="sal-meta-item"><i class="fa-solid fa-calendar-days"></i> Último dia útil do mês</span>
+          ${salarioConfig.obs ? `<span class="sal-meta-item"><i class="fa-solid fa-building"></i> ${salarioConfig.obs}</span>` : ""}
+        </div>
       </div>
-      <div class="sal-item">
-        <span class="sal-label"><i class="fa-solid fa-clock"></i> Este mês</span>
-        <span class="sal-value ${recebidoEsteMes ? "income-cell" : ""}">
-          ${recebidoEsteMes
-            ? `<i class="fa-solid fa-check-circle"></i> Recebido`
-            : `<i class="fa-solid fa-hourglass-half"></i> Aguardando (${pagEstesMes.toLocaleDateString("pt-BR")})`}
-        </span>
-      </div>
-      <div class="sal-item">
-        <span class="sal-label"><i class="fa-solid fa-calendar-check"></i> Próximo pagamento</span>
-        <span class="sal-value">${proximoPagBase.toLocaleDateString("pt-BR")}</span>
-      </div>
-      ${salarioConfig.obs ? `<div class="sal-item full"><span class="sal-label"><i class="fa-solid fa-note-sticky"></i> Fonte</span><span class="sal-value">${salarioConfig.obs}</span></div>` : ""}
-      <div class="sal-item" style="align-items:flex-end">
-        <span class="sal-label">&nbsp;</span>
-        <span class="sal-badge ${salarioConfig.ativo ? "active" : "inactive"}">${salarioConfig.ativo ? "Ativo" : "Inativo"}</span>
+      <div class="sal-banner-actions">
+        <button class="icon-btn edit" title="Editar" onclick="document.getElementById('btn-config-salario').click()">
+          <i class="fa-solid fa-pen"></i>
+        </button>
+        <button class="icon-btn del" title="Remover" onclick="window._confirmDeleteSalario()">
+          <i class="fa-solid fa-trash"></i>
+        </button>
       </div>
     </div>`;
 }
+
+window._confirmDeleteSalario = () => {
+  confirmCallback = deleteSalarioConfig;
+  document.getElementById("confirm-msg").textContent = "Remover o salário mensal configurado?";
+  openModal("modal-confirm");
+};
 
 async function saveSalarioConfig() {
   const ativo = document.getElementById("sal-ativo").checked;
