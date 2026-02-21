@@ -1167,24 +1167,15 @@ function exportPDF(year) {
   const userName  = currentUser?.displayName || "Usuário";
   const now       = new Date();
   const todayStr  = today();
-  // Para caixinhas: rendimento projetado até 31/dez do ano do relatório
+  // Para caixinhas e salário: relatório é sempre uma PROVISÃO do ano completo.
+  // Projetar rendimento até 31/dez do ano do relatório em todos os casos.
   const endOfYear = `${year}-12-31`;
-  const yieldDate = year < now.getFullYear() ? endOfYear
-                  : year > now.getFullYear() ? endOfYear
-                  : todayStr; // ano atual: até hoje
+  const yieldDate = endOfYear; // sempre projeção até fim do ano
 
-  // Helper: retorna salário para o mês no contexto do relatório anual.
-  // Para meses futuros (no ano atual), usa o valor configurado como previsão.
-  // Para anos anteriores ou futuros: sempre inclui (já passou ou já está previsto).
+  // Helper: retorna salário para TODOS os 12 meses do ano no relatório (provisão anual).
   const getSalaryForPDF = (mKey) => {
     if (!salarioConfig || !salarioConfig.ativo || !salarioConfig.valor) return 0;
-    const [y, m_] = mKey.split("-").map(Number);
-    // Ano passado: salário já foi pago em todos os meses
-    if (y < now.getFullYear()) return salarioConfig.valor;
-    // Ano futuro: projetado para todos os meses
-    if (y > now.getFullYear()) return salarioConfig.valor;
-    // Ano atual: usa lógica real (só meses cujo último dia útil já passou)
-    return getSalaryForMonth(mKey);
+    return salarioConfig.valor; // todos os meses = provisão do ano completo
   };
 
   // ── Extrato mensal ──────────────────────────────────────────
@@ -1278,7 +1269,7 @@ function exportPDF(year) {
     .filter(r => new Date(r.data+"T00:00:00").getFullYear() === year)
     .sort((a,b) => a.data.localeCompare(b.data));
   const receitasRows = receitasAno.map((r, idx) => {
-    const valorAtual = calcRendimento(r, todayStr);
+    const valorAtual = calcRendimento(r, yieldDate);
     const rend = valorAtual - r.valor;
     return `<tr style="background:${idx%2===0?"#fff":"#f8fafc"}">
       <td>${formatDateBR(r.data)}</td>

@@ -334,58 +334,54 @@ input, select, textarea { font-family: inherit; }
 .summary-grid.small { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 
 .summary-card {
-  background: rgba(255,255,255,0.72);
-  backdrop-filter: blur(14px) saturate(150%);
-  -webkit-backdrop-filter: blur(14px) saturate(150%);
-  border: 1px solid rgba(255,255,255,0.82);
-  border-bottom-color: rgba(180,210,255,0.30);
   border-radius: var(--radius);
   padding: 20px; display: flex; gap: 16px;
   align-items: center;
   transition: var(--trans);
   position: relative; overflow: hidden;
-  box-shadow:
-    0 2px 12px rgba(59,130,246,0.07),
-    inset 0 1px 0 rgba(255,255,255,0.95);
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.13);
+}
+.summary-card.income  { background: linear-gradient(135deg, #059669, #10b981); }
+.summary-card.expense { background: linear-gradient(135deg, #dc2626, #ef4444); }
+.summary-card.free    { background: linear-gradient(135deg, #1d4ed8, #3b82f6); }
+.summary-card.pending { background: linear-gradient(135deg, #b45309, #f59e0b); }
+.summary-card.yield   { background: linear-gradient(135deg, #5b21b6, #7c3aed); }
+.summary-card.reserve { background: linear-gradient(135deg, #0369a1, #0ea5e9); }
+.summary-card.info    { background: linear-gradient(135deg, #0369a1, #0ea5e9); }
+
+/* Decorative circles */
+.summary-card::after {
+  content: '';
+  position: absolute; right: -18px; bottom: -18px;
+  width: 72px; height: 72px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 50%;
+  pointer-events: none;
 }
 .summary-card::before {
   content: '';
-  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  position: absolute; right: 14px; bottom: 14px;
+  width: 38px; height: 38px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 50%;
+  pointer-events: none;
 }
-.summary-card.income::before  { background: var(--success); }
-.summary-card.expense::before { background: var(--danger); }
-.summary-card.free::before    { background: var(--primary); }
-.summary-card.pending::before { background: var(--warning); }
-.summary-card.yield::before   { background: var(--yield); }
-.summary-card.reserve::before { background: var(--info); }
-.summary-card.info::before    { background: var(--info); }
 
-.summary-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: var(--border2); }
+.summary-card:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(0,0,0,0.18); }
 
 .sc-icon {
   width: 48px; height: 48px; border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
   font-size: 1.2rem; flex-shrink: 0;
+  background: rgba(255,255,255,0.22);
+  color: #fff;
 }
-.income  .sc-icon { background: var(--success-bg); color: var(--success); }
-.expense .sc-icon { background: var(--danger-bg);  color: var(--danger); }
-.free    .sc-icon { background: var(--primary-bg); color: var(--primary); }
-.pending .sc-icon { background: var(--warning-bg); color: var(--warning); }
-.yield   .sc-icon { background: rgba(139,92,246,0.12); color: var(--yield); }
-.reserve .sc-icon { background: var(--info-bg); color: var(--info); }
-.info    .sc-icon { background: var(--info-bg); color: var(--info); }
 
 .sc-info { flex: 1; min-width: 0; }
-.sc-label { font-size: .78rem; color: var(--text3); display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .05em; }
-.sc-value { font-size: 1.35rem; font-weight: 800; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sc-sub   { font-size: .78rem; color: var(--text3); display: block; margin-top: 2px; }
-
-.income  .sc-value { color: var(--success); }
-.expense .sc-value { color: var(--danger); }
-.free    .sc-value { color: var(--primary); }
-.pending .sc-value { color: var(--warning); }
-.yield   .sc-value { color: var(--yield); }
-.reserve .sc-value { color: var(--info); }
+.sc-label { font-size: .75rem; opacity: .88; display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .07em; font-weight: 600; }
+.sc-value { font-size: 1.35rem; font-weight: 900; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
+.sc-sub   { font-size: .75rem; opacity: .78; display: block; margin-top: 3px; }
 
 /* ── BUDGET TRACKER ─────────────────────────────────────────── */
 .budget-tracker .card-header { margin-bottom: 14px; }
@@ -900,11 +896,7 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
   50% { opacity: .5; }
 }
 
-/* Subtle hover on summary cards */
-.summary-card.income:hover  { border-color: var(--success); }
-.summary-card.expense:hover { border-color: var(--danger); }
-.summary-card.free:hover    { border-color: var(--primary); }
-.summary-card.pending:hover { border-color: var(--warning); }
+/* Subtle hover on summary cards — border handled by hover transform above */
 
 /* Smooth number transitions */
 .sc-value, .tx-value, .reserva-saldo, .cartao-fatura-val {
