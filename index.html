@@ -644,8 +644,15 @@
           <input type="text" id="res-nome" placeholder="Ex: Reserva de emergência, Viagem..." required/>
         </div>
         <div class="form-group">
-          <label>Meta (R$)</label>
+          <label>Meta Total (R$)</label>
           <input type="number" id="res-meta" step="0.01" min="0" placeholder="0,00"/>
+        </div>
+        <div class="form-group">
+          <label>Aporte Mensal Planejado (R$)</label>
+          <div class="input-hint-row">
+            <input type="number" id="res-meta-mensal" step="0.01" min="0" placeholder="0,00"/>
+            <span class="input-hint">Quanto pretende guardar/mês</span>
+          </div>
         </div>
         <div class="form-group">
           <label>Rendimento Diário (%)</label>

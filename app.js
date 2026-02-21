@@ -964,6 +964,7 @@ function renderReservas() {
         <div class="reserva-title">
           <h3>${res.nome}</h3>
           ${res.meta ? `<span class="reserva-meta">Meta: ${fmt(res.meta)}</span>` : ""}
+          ${res.metaMensal ? `<span class="tx-badge" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe"><i class="fa-solid fa-calendar-plus"></i> ${fmt(res.metaMensal)}/mês</span>` : ""}
           ${res.rendimento ? `<span class="tx-badge yield"><i class="fa-solid fa-seedling"></i> ${fmtPct(res.rendimento)}/dia</span>` : ""}
         </div>
         <div class="reserva-actions">
@@ -1181,7 +1182,10 @@ function exportPDF(year) {
   };
 
   // ── Extrato mensal ──────────────────────────────────────────
-  let tableRows = "", totalRec = 0, totalGas = 0, totalSal = 0, acumulado = 0;
+  // Total de aporte mensal planejado em reservas (soma de todas as caixinhas com metaMensal)
+  const totalAporteMensalReservas = reservas.reduce((s,r) => s + (r.metaMensal || 0), 0);
+
+  let tableRows = "", totalRec = 0, totalGas = 0, totalSal = 0, totalAporteAno = 0, acumulado = 0;
   for (let m = 0; m < 12; m++) {
     const mKey = `${year}-${String(m+1).padStart(2,"0")}`;
     const recPura = receitas.filter(r => monthKey(r.data) === mKey).reduce((s,r) => s + r.valor, 0);
@@ -1189,7 +1193,9 @@ function exportPDF(year) {
     const rec  = recPura + sal;
     const gas  = calcGastosMes(mKey);
     const saldo = rec - gas;
-    acumulado += saldo; totalRec += rec; totalGas += gas; totalSal += sal;
+    acumulado += saldo;
+    totalRec += rec; totalGas += gas; totalSal += sal;
+    if (totalAporteMensalReservas > 0) totalAporteAno += totalAporteMensalReservas;
     const isFut = year > now.getFullYear() || (year === now.getFullYear() && m > now.getMonth());
     const rowBg = isFut ? "#f8fafc" : saldo < 0 ? "#fff5f5" : m%2===0 ? "#f8fafc" : "#fff";
     tableRows += `<tr style="background:${rowBg}${isFut?";opacity:.65":""}">
@@ -1197,6 +1203,7 @@ function exportPDF(year) {
       <td style="text-align:right;color:#10b981">${recPura > 0 ? fmt(recPura) : "—"}</td>
       <td style="text-align:right;color:#3b82f6">${sal > 0 ? fmt(sal) : "—"}</td>
       <td style="text-align:right;color:#ef4444">${gas > 0 ? fmt(gas) : "—"}</td>
+      <td style="text-align:right;color:#1d4ed8;font-weight:600">${totalAporteMensalReservas > 0 ? fmt(totalAporteMensalReservas) : "—"}</td>
       <td style="text-align:right;font-weight:600;color:${saldo<0?"#ef4444":"#059669"}">${fmt(saldo)}</td>
       <td style="text-align:right;color:${acumulado<0?"#ef4444":"#1e293b"}">${fmt(acumulado)}</td>
     </tr>`;
@@ -1325,6 +1332,7 @@ function exportPDF(year) {
   }).join("");
 
   // ── Reservas / Caixinhas — rendimento projetado até 31/dez do ano ──
+  let totalMetaMensalAno = 0;
   const reservasRows = reservas.map((r, idx) => {
     // Receitas vinculadas: x.reserva é boolean true, x.reservaNome é o nome da caixinha
     const rxs = receitas.filter(x => x.reserva === true && x.reservaNome === r.nome);
@@ -1335,20 +1343,23 @@ function exportPDF(year) {
     // Rendimento gerado especificamente dentro do ano do relatório
     const startOfYear = `${year}-01-01`;
     const rendAnual = dep > 0 ? rxs.reduce((s,x) => {
-      // Valor da receita no início do ano (ou na data do depósito, se posterior a 01/jan)
       const refInicio = x.data >= startOfYear ? x.data : startOfYear;
       const valInicio = x.data >= startOfYear
-        ? x.valor                              // depositado no próprio ano: base = valor original
-        : calcRendimento(x, startOfYear);      // depositado antes: base = saldo em 01/jan
+        ? x.valor
+        : calcRendimento(x, startOfYear);
       const valFim = calcRendimento(x, yieldDate);
       return s + Math.max(0, valFim - valInicio);
     }, 0) : 0;
+    // Meta mensal: aporte planejado × 12 meses
+    const aporteAnual = (r.metaMensal || 0) * 12;
+    if (aporteAnual > 0) totalMetaMensalAno += aporteAnual;
     return `<tr style="background:${idx%2===0?"#fff":"#f8fafc"}">
       <td><strong>${r.nome}</strong></td>
       <td style="text-align:right">${r.rendimento ? fmtPct(r.rendimento)+"/dia útil" : "—"}</td>
+      <td style="text-align:right;color:#3b82f6;font-weight:600">${r.metaMensal > 0 ? fmt(r.metaMensal)+"<small style='font-weight:400;color:#94a3b8'>/mês</small>" : "—"}</td>
+      <td style="text-align:right;color:#1d4ed8;font-weight:600">${aporteAnual > 0 ? fmt(aporteAnual) : "—"}</td>
       <td style="text-align:right;color:#10b981;font-weight:600">${dep > 0 ? fmt(dep) : "—"}</td>
       <td style="text-align:right;color:#059669;font-weight:600">${rendAnual > 0.005 ? "+"+fmt(rendAnual) : (r.rendimento ? "<em style='color:#94a3b8'>sem depósito</em>" : "—")}</td>
-      <td style="text-align:right;color:#059669">${rendTotal > 0.005 ? "+"+fmt(rendTotal) : "—"}</td>
       <td style="text-align:right;font-weight:700;font-size:13px">${atual > 0 ? fmt(atual) : fmt(dep)}</td>
     </tr>`;
   }).join("");
@@ -1479,7 +1490,7 @@ function exportPDF(year) {
   <div class="section">
     <h2>📅 Extrato Mensal <span class="pill">${year}</span></h2>
     <table>
-      <thead><tr><th>Mês</th><th>Outras Receitas</th><th>Salário</th><th>Gastos</th><th>Saldo do Mês</th><th>Acumulado</th></tr></thead>
+      <thead><tr><th>Mês</th><th>Outras Receitas</th><th>Salário</th><th>Gastos</th>${totalAporteMensalReservas>0?"<th>Aporte Reservas</th>":""}<th>Saldo do Mês</th><th>Acumulado</th></tr></thead>
       <tbody>
         ${tableRows}
         <tr class="trow">
@@ -1487,6 +1498,7 @@ function exportPDF(year) {
           <td style="text-align:right;color:#10b981">${fmt(totalRec - totalSal)}</td>
           <td style="text-align:right;color:#3b82f6">${totalSal>0?fmt(totalSal):"—"}</td>
           <td style="text-align:right;color:#ef4444">${fmt(totalGas)}</td>
+          ${totalAporteMensalReservas>0?`<td style="text-align:right;color:#1d4ed8">${fmt(totalAporteAno)}</td>`:""}
           <td style="text-align:right;color:${totalSaldo<0?"#ef4444":"#059669"}">${fmt(totalSaldo)}</td>
           <td></td>
         </tr>
@@ -1516,8 +1528,16 @@ function exportPDF(year) {
   <div class="section">
     <h2 class="green">🏦 Caixinhas / Reservas <span class="pill" style="background:#059669">Rendimento em ${year}</span></h2>
     <table>
-      <thead><tr><th>Nome</th><th>Taxa/dia útil</th><th>Total Depositado</th><th>Rendeu em ${year}</th><th>Rendimento Total</th><th>Saldo${year<=now.getFullYear()?" Atual":" Projetado"}</th></tr></thead>
-      <tbody>${reservasRows}</tbody>
+      <thead><tr><th>Nome</th><th>Taxa/dia útil</th><th>Aporte Mensal</th><th>Aporte Planejado ${year}</th><th>Total Depositado</th><th>Rendeu em ${year}</th><th>Saldo${year<=now.getFullYear()?" Atual":" Projetado"}</th></tr></thead>
+      <tbody>
+        ${reservasRows}
+        ${totalMetaMensalAno > 0 ? `<tr class="trow">
+          <td colspan="2">TOTAL PLANEJADO ${year}</td>
+          <td></td>
+          <td style="text-align:right;color:#1d4ed8">${fmt(totalMetaMensalAno)}</td>
+          <td colspan="3"></td>
+        </tr>` : ""}
+      </tbody>
     </table>
   </div>` : ""}
 
@@ -1939,11 +1959,12 @@ async function saveCartao() {
 async function saveReserva() {
   const id  = document.getElementById("res-edit-id").value;
   const data = {
-    nome:       document.getElementById("res-nome").value.trim(),
-    meta:       parseFloat(document.getElementById("res-meta").value) || 0,
-    rendimento: parseFloat(document.getElementById("res-rendimento").value) || 0,
-    icone:      document.getElementById("res-icone").value,
-    cor:        document.getElementById("res-color").value
+    nome:        document.getElementById("res-nome").value.trim(),
+    meta:        parseFloat(document.getElementById("res-meta").value) || 0,
+    metaMensal:  parseFloat(document.getElementById("res-meta-mensal").value) || 0,
+    rendimento:  parseFloat(document.getElementById("res-rendimento").value) || 0,
+    icone:       document.getElementById("res-icone").value,
+    cor:         document.getElementById("res-color").value
   };
   if (!data.nome) { showToast("Informe o nome da reserva", "error"); return; }
 
@@ -1985,10 +2006,11 @@ window.editCartao = (id) => {
 window.editReserva = (id) => {
   const r = reservas.find(x => x.id === id);
   if (!r) return;
-  document.getElementById("res-edit-id").value   = id;
-  document.getElementById("res-nome").value      = r.nome;
-  document.getElementById("res-meta").value      = r.meta || "";
-  document.getElementById("res-rendimento").value = r.rendimento || "";
+  document.getElementById("res-edit-id").value        = id;
+  document.getElementById("res-nome").value           = r.nome;
+  document.getElementById("res-meta").value           = r.meta || "";
+  document.getElementById("res-meta-mensal").value    = r.metaMensal || "";
+  document.getElementById("res-rendimento").value     = r.rendimento || "";
   document.getElementById("res-icone").value     = r.icone;
   document.getElementById("res-color").value     = r.cor || "#10b981";
   document.querySelectorAll("#res-color-picker .color-opt").forEach(el => {
