@@ -348,18 +348,32 @@ function isFaturaVencida(cartao, mKey) {
   return agora > dueDate;
 }
 
-// Total de gastos efetivos num mês (competência): parcelas de cartão pelo mês de competência + pix/dinheiro
+// Total de gastos efetivos num mês (competência): ALL gastos pelo mês de competência orçam.
+// Gastos de cartão parcelados: usa getInstallmentBudgetMonth.
+// Gastos pix/dinheiro parcelados com parcelaInicio: também usa deslocamento.
+// Gastos pix/dinheiro sem parcelas: data da compra.
 function calcGastosMes(mKey) {
   let total = 0;
   for (const g of gastos) {
+    const parcelas = g.parcelas || 1;
     if (g.pagamento !== "cartao") {
-      if (monthKey(g.data) === mKey) total += g.valor;
+      if (parcelas === 1) {
+        // sem parcelas: data de compra é a competência
+        if (monthKey(g.data) === mKey) total += g.valor;
+      } else {
+        // parcelado pix/dinheiro: distribui pelas parcelas usando mesma lógica
+        const valorParc = g.valor / parcelas;
+        for (let i = 0; i < parcelas; i++) {
+          const budgetKey = getInstallmentBudgetMonth(g, null, i);
+          if (budgetKey === mKey) total += valorParc;
+        }
+      }
     } else {
       const cartao = cartoes.find(c => c.id === g.cartaoId);
-      const parcelas = g.parcelas || 1;
+      const valorParc = g.valor / parcelas;
       for (let i = 0; i < parcelas; i++) {
         if (getInstallmentBudgetMonth(g, cartao, i) === mKey) {
-          total += g.valor / parcelas;
+          total += valorParc;
         }
       }
     }
@@ -519,15 +533,23 @@ function renderChartReceitaGasto(year) {
     }
   }
 
-  // Gastos: distribuir parcelas cartao pelo mês de vencimento; pix/dinheiro pela data de compra
+  // Gastos: distribuir ALL gastos pelo mês de competência orçam.
   for (const g of gastos) {
+    const parcelas = g.parcelas || 1;
+    const valorParc = g.valor / parcelas;
     if (g.pagamento !== "cartao") {
-      const d = new Date(g.data + "T00:00:00");
-      if (d.getFullYear() === year) gasData[d.getMonth()] += g.valor;
+      if (parcelas === 1) {
+        const d = new Date(g.data + "T00:00:00");
+        if (d.getFullYear() === year) gasData[d.getMonth()] += g.valor;
+      } else {
+        for (let i = 0; i < parcelas; i++) {
+          const budgetKey = getInstallmentBudgetMonth(g, null, i);
+          const [dy] = budgetKey.split("-").map(Number);
+          if (dy === year) gasData[parseInt(budgetKey.split("-")[1]) - 1] += valorParc;
+        }
+      }
     } else {
       const cartao = cartoes.find(c => c.id === g.cartaoId);
-      const parcelas = g.parcelas || 1;
-      const valorParc = g.valor / parcelas;
       for (let i = 0; i < parcelas; i++) {
         const budgetKey = getInstallmentBudgetMonth(g, cartao, i); // mês de competência
         const [dy] = budgetKey.split("-").map(Number);
@@ -560,18 +582,23 @@ function renderChartCategorias(mKey) {
   const ctx = document.getElementById("chart-categorias").getContext("2d");
   if (charts.categorias) charts.categorias.destroy();
 
-  // Monta catMap considerando parcelas de cartão pelo mês de vencimento
+  // Monta catMap considerando TODOS os gastos pelo mês de competência
   const catMap = {};
   for (const g of gastos) {
     const cat = g.categoria || "outro";
+    const parcelas = g.parcelas || 1;
+    const valorParc = g.valor / parcelas;
     if (g.pagamento !== "cartao") {
-      if (monthKey(g.data) === mKey) {
-        catMap[cat] = (catMap[cat] || 0) + g.valor;
+      if (parcelas === 1) {
+        if (monthKey(g.data) === mKey) catMap[cat] = (catMap[cat] || 0) + g.valor;
+      } else {
+        for (let i = 0; i < parcelas; i++) {
+          if (getInstallmentBudgetMonth(g, null, i) === mKey)
+            catMap[cat] = (catMap[cat] || 0) + valorParc;
+        }
       }
     } else {
       const cartao = cartoes.find(c => c.id === g.cartaoId);
-      const parcelas = g.parcelas || 1;
-      const valorParc = g.valor / parcelas;
       for (let i = 0; i < parcelas; i++) {
         if (getInstallmentBudgetMonth(g, cartao, i) === mKey) {
           catMap[cat] = (catMap[cat] || 0) + valorParc;
@@ -1006,95 +1033,266 @@ function renderAnualReport(year) {
 
 function exportPDF(year) {
   const months = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-  const userName = currentUser?.displayName || "Usuário";
-  const now = new Date();
-  let tableRows = "", totalRec = 0, totalGas = 0, acumulado = 0;
+  const catLabels = { alimentacao:"Alimentação", transporte:"Transporte", moradia:"Moradia", saude:"Saúde", lazer:"Lazer", educacao:"Educação", roupas:"Roupas", tecnologia:"Tecnologia", outro:"Outro" };
+  const payLabel  = { cartao:"Cartão", pix:"Pix", dinheiro:"Dinheiro", debito:"Débito", credito:"Crédito" };
+  const userName  = currentUser?.displayName || "Usuário";
+  const now       = new Date();
+  const todayStr  = today();
 
+  // ── Extrato mensal ──────────────────────────────────────────
+  let tableRows = "", totalRec = 0, totalGas = 0, acumulado = 0;
   for (let m = 0; m < 12; m++) {
     const mKey = `${year}-${String(m+1).padStart(2,"0")}`;
     const rec = receitas.filter(r => monthKey(r.data) === mKey).reduce((s,r) => s + r.valor, 0)
-              + getSalaryForMonth(`${year}-${String(m+1).padStart(2,"0")}`);
+              + getSalaryForMonth(mKey);
     const gas = calcGastosMes(mKey);
     const saldo = rec - gas;
     acumulado += saldo; totalRec += rec; totalGas += gas;
-    tableRows += `<tr style="background:${m%2===0?"#f8fafc":"#fff"}">
-      <td>${months[m]}</td>
+    const isFut = year > now.getFullYear() || (year === now.getFullYear() && m > now.getMonth());
+    tableRows += `<tr style="background:${m%2===0?"#f8fafc":"#fff"}${isFut?";opacity:.6":""}">
+      <td>${months[m]}${isFut?" <em style='color:#94a3b8;font-size:10px'>(previsto)</em>":""}</td>
       <td style="color:#10b981;text-align:right">${rec > 0 ? fmt(rec) : "—"}</td>
       <td style="color:#ef4444;text-align:right">${gas > 0 ? fmt(gas) : "—"}</td>
       <td style="color:${saldo<0?"#ef4444":"#10b981"};text-align:right">${fmt(saldo)}</td>
       <td style="color:${acumulado<0?"#ef4444":"#10b981"};text-align:right">${fmt(acumulado)}</td>
     </tr>`;
   }
-
   const totalSaldo = totalRec - totalGas;
   const taxa = totalRec > 0 ? ((totalSaldo / totalRec) * 100).toFixed(1) + "%" : "—";
 
+  // ── Gastos por categoria (competência correta) ──────────────
   const catMap = {};
-  const catLabels = { alimentacao:"Alimentação", transporte:"Transporte", moradia:"Moradia", saude:"Saúde", lazer:"Lazer", educacao:"Educação", roupas:"Roupas", tecnologia:"Tecnologia", outro:"Outro" };
   for (const g of gastos) {
-    const d = new Date(g.data + "T00:00:00");
-    if (d.getFullYear() === year) catMap[g.categoria || "outro"] = (catMap[g.categoria || "outro"] || 0) + g.valor;
+    const parcelas = g.parcelas || 1;
+    const cartao   = cartoes.find(c => c.id === g.cartaoId);
+    if (parcelas === 1 && g.pagamento !== "cartao") {
+      const d = new Date(g.data + "T00:00:00");
+      if (d.getFullYear() === year) catMap[g.categoria||"outro"] = (catMap[g.categoria||"outro"]||0) + g.valor;
+    } else {
+      for (let i = 0; i < parcelas; i++) {
+        const bk = getInstallmentBudgetMonth(g, cartao, i);
+        if (bk.startsWith(String(year)))
+          catMap[g.categoria||"outro"] = (catMap[g.categoria||"outro"]||0) + g.valor / parcelas;
+      }
+    }
   }
-  const catSorted = Object.entries(catMap).sort((a,b) => b[1]-a[1]).slice(0, 5);
-  const catRows = catSorted.map(([k,v]) => `<tr><td>${catLabels[k]||k}</td><td style="text-align:right;color:#ef4444;font-weight:600">${fmt(v)}</td></tr>`).join("");
+  const catSorted = Object.entries(catMap).sort((a,b) => b[1]-a[1]);
+  const catRows = catSorted.map(([k,v]) =>
+    `<tr><td>${catLabels[k]||k}</td>
+     <td style="text-align:right;color:#ef4444;font-weight:600">${fmt(v)}</td>
+     <td style="text-align:right;color:#64748b">${totalGas>0?((v/totalGas)*100).toFixed(1)+"%":"—"}</td></tr>`
+  ).join("");
+
+  // ── Todos os gastos do ano (por competência) ────────────────
+  const gastosAno = gastos.filter(g => {
+    const d = new Date(g.data + "T00:00:00");
+    if (d.getFullYear() === year) return true;
+    const parcelas = g.parcelas || 1;
+    if (parcelas > 1) {
+      const cartao = cartoes.find(c => c.id === g.cartaoId);
+      for (let i = 0; i < parcelas; i++)
+        if (getInstallmentBudgetMonth(g, cartao, i).startsWith(String(year))) return true;
+    }
+    return false;
+  }).sort((a,b) => a.data.localeCompare(b.data));
+
+  const gastosRows = gastosAno.map(g => {
+    const cartao  = cartoes.find(c => c.id === g.cartaoId);
+    const parcelas = g.parcelas || 1;
+    const parcStr = parcelas > 1 ? `${parcelas}x ${fmt(g.valor/parcelas)}` : fmt(g.valor);
+    return `<tr>
+      <td>${formatDateBR(g.data)}</td>
+      <td>${g.descricao}</td>
+      <td>${catLabels[g.categoria]||g.categoria||"Outro"}</td>
+      <td>${payLabel[g.pagamento]||g.pagamento}${cartao?` · ${cartao.nome}`:""}</td>
+      <td style="text-align:right">${parcStr}</td>
+      <td style="text-align:right;color:#ef4444;font-weight:600">${fmt(g.valor)}</td>
+    </tr>`;
+  }).join("");
+
+  // ── Receitas do ano ─────────────────────────────────────────
+  const receitasAno = receitas
+    .filter(r => new Date(r.data+"T00:00:00").getFullYear() === year)
+    .sort((a,b) => a.data.localeCompare(b.data));
+  const receitasRows = receitasAno.map(r => {
+    const valorAtual = calcRendimento(r, todayStr);
+    const rend = valorAtual - r.valor;
+    return `<tr>
+      <td>${formatDateBR(r.data)}</td>
+      <td>${r.descricao}</td>
+      <td>${r.reservaNome || (r.reserva ? "Caixinha" : "Conta Corrente")}</td>
+      <td style="text-align:right;color:#10b981;font-weight:600">${fmt(r.valor)}</td>
+      <td style="text-align:right;color:#059669">${rend > 0 ? "+"+fmt(rend) : "—"}</td>
+    </tr>`;
+  }).join("");
+
+  // Salário recebido no ano
+  const salRows = months.map((mn, mi) => {
+    const mKey = `${year}-${String(mi+1).padStart(2,"0")}`;
+    const val  = getSalaryForMonth(mKey);
+    return val > 0
+      ? `<tr><td>${mn}</td><td style="text-align:right;color:#10b981;font-weight:600">${fmt(val)}</td></tr>`
+      : "";
+  }).join("");
+
+  // ── Reservas / Caixinhas ────────────────────────────────────
+  const reservasRows = reservas.map(r => {
+    const rxs = receitas.filter(x => x.reservaNome === r.nome || x.reserva === r.id);
+    const dep  = rxs.reduce((s,x) => s + x.valor, 0);
+    const atual = rxs.reduce((s,x) => s + calcRendimento(x, todayStr), 0);
+    return `<tr>
+      <td>${r.nome}</td>
+      <td style="text-align:right">${r.rendimento ? fmtPct(r.rendimento)+"/dia" : "—"}</td>
+      <td style="text-align:right;color:#10b981;font-weight:600">${fmt(dep)}</td>
+      <td style="text-align:right;color:#059669">${atual-dep > 0 ? "+"+fmt(atual-dep) : "—"}</td>
+      <td style="text-align:right;font-weight:700">${fmt(atual)}</td>
+    </tr>`;
+  }).join("");
+
+  // ── Cartões ─────────────────────────────────────────────────
+  const cartoesRows = cartoes.map(c => {
+    let fat = 0;
+    for (let m = 0; m < 12; m++) {
+      const mKey = `${year}-${String(m+1).padStart(2,"0")}`;
+      fat += calcFaturaCartao(c.id, mKey);
+    }
+    return `<tr>
+      <td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${c.color};margin-right:6px;vertical-align:middle"></span>${c.nome}</td>
+      <td>${c.titular || "—"}</td>
+      <td style="text-align:right">${c.vencimento ? "Dia "+c.vencimento : "—"}</td>
+      <td style="text-align:right">${c.limite ? fmt(c.limite) : "—"}</td>
+      <td style="text-align:right;color:#ef4444;font-weight:600">${fmt(fat)}</td>
+    </tr>`;
+  }).join("");
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"/>
-  <title>Relatório ${year} — FinanceHub</title>
+  <title>Relatório ${year} — Controle de Gastos</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Inter',Arial,sans-serif;color:#1e293b;background:#fff;padding:40px;font-size:13px}
+    body{font-family:'Inter',Arial,sans-serif;color:#1e293b;background:#fff;padding:40px;font-size:12.5px;line-height:1.5}
     .header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;padding-bottom:18px;border-bottom:3px solid #3b82f6}
     .logo{font-size:22px;font-weight:800;color:#3b82f6}.logo-sub{color:#64748b;font-size:12px;margin-top:4px}
     .header-right{text-align:right;color:#64748b;font-size:12px;line-height:1.7}
-    .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
-    .sbox{padding:14px;border-radius:8px;border-left:4px solid}
+    .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px}
+    .sbox{padding:14px 16px;border-radius:10px;border-left:4px solid}
     .sbox.income{background:#f0fdf4;border-color:#10b981}.sbox.expense{background:#fef2f2;border-color:#ef4444}
     .sbox.balance{background:#eff6ff;border-color:#3b82f6}.sbox.savings{background:#fffbeb;border-color:#f59e0b}
-    .sbox .label{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:600}
-    .sbox .value{font-size:18px;font-weight:800;margin-top:3px}
+    .sbox .label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#64748b;font-weight:600}
+    .sbox .value{font-size:20px;font-weight:800;margin-top:4px}
     .income .value{color:#059669}.expense .value{color:#dc2626}.balance .value{color:#3b82f6}.savings .value{color:#d97706}
-    h2{font-size:14px;font-weight:700;margin:20px 0 10px;color:#1e293b}
-    table{width:100%;border-collapse:collapse;margin-bottom:20px}
-    th{background:#3b82f6;color:#fff;padding:9px 12px;text-align:left;font-size:11px;font-weight:700;letter-spacing:.04em}
+    h2{font-size:13px;font-weight:700;margin:24px 0 10px;color:#1e293b;border-bottom:2px solid #e2e8f0;padding-bottom:6px}
+    table{width:100%;border-collapse:collapse;margin-bottom:4px;font-size:12px}
+    th{background:#3b82f6;color:#fff;padding:8px 10px;text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.04em}
     th:not(:first-child){text-align:right}
-    td{padding:8px 12px;border-bottom:1px solid #e2e8f0}
+    td{padding:7px 10px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+    tr:last-child td{border-bottom:none}
     .trow td{background:#eff6ff;font-weight:700;border-top:2px solid #3b82f6}
-    .footer{margin-top:28px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px}
-    @media print{body{padding:20px}}
+    .section{margin-bottom:24px}
+    .footer{margin-top:32px;text-align:center;font-size:10.5px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:12px}
+    .pb{page-break-before:always}
+    @media print{
+      body{padding:20px;font-size:11.5px}
+      th{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#3b82f6!important;color:#fff!important}
+      .sbox{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    }
   </style>
 </head>
 <body>
   <div class="header">
-    <div><div class="logo">📊 FinanceHub</div><div class="logo-sub">Relatório Financeiro Anual · ${year}</div></div>
-    <div class="header-right"><strong>${userName}</strong><br/>Gerado em ${now.toLocaleDateString("pt-BR")} às ${now.toLocaleTimeString("pt-BR")}</div>
+    <div><div class="logo">Controle de Gastos</div><div class="logo-sub">Relatório Financeiro Completo · ${year}</div></div>
+    <div class="header-right"><strong>${userName}</strong><br/>Gerado em ${now.toLocaleDateString("pt-BR")} às ${now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>
   </div>
+
   <div class="summary-grid">
     <div class="sbox income"><div class="label">Total Recebido</div><div class="value">${fmt(totalRec)}</div></div>
     <div class="sbox expense"><div class="label">Total Gasto</div><div class="value">${fmt(totalGas)}</div></div>
-    <div class="sbox balance"><div class="label">Saldo do Ano</div><div class="value">${fmt(totalSaldo)}</div></div>
+    <div class="sbox balance"><div class="label">Saldo do Ano</div><div class="value" style="color:${totalSaldo<0?"#dc2626":"#3b82f6"}">${fmt(totalSaldo)}</div></div>
     <div class="sbox savings"><div class="label">Taxa de Poupança</div><div class="value">${taxa}</div></div>
   </div>
-  <h2>📅 Extrato Mensal</h2>
-  <table>
-    <thead><tr><th>Mês</th><th style="text-align:right">Receitas</th><th style="text-align:right">Gastos</th><th style="text-align:right">Saldo do Mês</th><th style="text-align:right">Saldo Acumulado</th></tr></thead>
-    <tbody>
-      ${tableRows}
-      <tr class="trow"><td>TOTAL ${year}</td><td style="text-align:right;color:#10b981">${fmt(totalRec)}</td><td style="text-align:right;color:#ef4444">${fmt(totalGas)}</td><td style="text-align:right;color:${totalSaldo<0?"#ef4444":"#10b981"}">${fmt(totalSaldo)}</td><td></td></tr>
-    </tbody>
-  </table>
-  ${catSorted.length > 0 ? `<h2>📊 Top Categorias de Gastos (${year})</h2><table style="width:50%"><thead><tr><th>Categoria</th><th style="text-align:right">Total</th></tr></thead><tbody>${catRows}</tbody></table>` : ""}
-  <div class="footer">FinanceHub · Controle Financeiro Pessoal · Dados protegidos pelo Firebase</div>
+
+  <div class="section">
+    <h2>📅 Extrato Mensal</h2>
+    <table>
+      <thead><tr><th>Mês</th><th>Receitas</th><th>Gastos</th><th>Saldo do Mês</th><th>Acumulado</th></tr></thead>
+      <tbody>
+        ${tableRows}
+        <tr class="trow">
+          <td>TOTAL ${year}</td>
+          <td style="text-align:right;color:#10b981">${fmt(totalRec)}</td>
+          <td style="text-align:right;color:#ef4444">${fmt(totalGas)}</td>
+          <td style="text-align:right;color:${totalSaldo<0?"#ef4444":"#10b981"}">${fmt(totalSaldo)}</td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  ${catSorted.length > 0 ? `
+  <div class="section">
+    <h2>🎯 Gastos por Categoria</h2>
+    <table style="width:60%">
+      <thead><tr><th>Categoria</th><th>Total</th><th>% dos Gastos</th></tr></thead>
+      <tbody>${catRows}</tbody>
+    </table>
+  </div>` : ""}
+
+  ${salarioConfig?.ativo && salRows ? `
+  <div class="section">
+    <h2>💰 Salário Recebido em ${year}</h2>
+    <table style="width:40%">
+      <thead><tr><th>Mês</th><th>Valor</th></tr></thead>
+      <tbody>${salRows}</tbody>
+    </table>
+  </div>` : ""}
+
+  ${reservas.length > 0 ? `
+  <div class="section">
+    <h2>🏦 Caixinhas / Reservas (Saldo Atual)</h2>
+    <table>
+      <thead><tr><th>Nome</th><th>Rendimento</th><th>Depositado</th><th>Rendimentos</th><th>Saldo Atual</th></tr></thead>
+      <tbody>${reservasRows}</tbody>
+    </table>
+  </div>` : ""}
+
+  ${cartoes.length > 0 ? `
+  <div class="section">
+    <h2>💳 Cartões de Crédito — Total Faturado em ${year}</h2>
+    <table>
+      <thead><tr><th>Cartão</th><th>Titular</th><th>Vencimento</th><th>Limite</th><th>Total Faturado</th></tr></thead>
+      <tbody>${cartoesRows}</tbody>
+    </table>
+  </div>` : ""}
+
+  <div class="section pb">
+    <h2>📥 Receitas Registradas em ${year}</h2>
+    ${receitasAno.length > 0 ? `
+    <table>
+      <thead><tr><th>Data</th><th>Descrição</th><th>Destino</th><th>Valor</th><th>Rendimento</th></tr></thead>
+      <tbody>${receitasRows}</tbody>
+    </table>` : "<p style='color:#64748b;font-style:italic;padding:8px 0'>Nenhuma receita registrada neste período.</p>"}
+  </div>
+
+  <div class="section">
+    <h2>📤 Todos os Gastos de ${year}</h2>
+    ${gastosAno.length > 0 ? `
+    <table>
+      <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Pagamento</th><th>Parcelas</th><th>Total</th></tr></thead>
+      <tbody>${gastosRows}</tbody>
+    </table>` : "<p style='color:#64748b;font-style:italic;padding:8px 0'>Nenhum gasto registrado neste período.</p>"}
+  </div>
+
+  <div class="footer">Controle de Gastos · Relatório gerado automaticamente · Dados protegidos pelo Firebase · ${now.getFullYear()}</div>
 </body></html>`;
 
-  const win = window.open("", "_blank", "width=900,height=700");
-  if (!win) { showToast("Permita popups nesta página para exportar o PDF", "warning"); return; }
+  const win = window.open("", "_blank", "width=1050,height=850");
+  if (!win) { showToast("Permita popups nesta página para exportar o relatório", "warning"); return; }
   win.document.write(html);
   win.document.close();
-  win.addEventListener("load", () => setTimeout(() => win.print(), 300));
+  win.addEventListener("load", () => setTimeout(() => win.print(), 400));
 }
 
 window.openGerenciarParcelas = (gastoId) => {
