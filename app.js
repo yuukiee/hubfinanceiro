@@ -835,7 +835,8 @@ function renderAnualReport(year) {
   for (let m = 0; m < 12; m++) {
     const mKey = `${year}-${String(m+1).padStart(2,"0")}`;
     const isFuture = year > now.getFullYear() || (year === now.getFullYear() && m > now.getMonth());
-    const rec = receitas.filter(r => monthKey(r.data) === mKey).reduce((s,r) => s + r.valor, 0);
+    const rec = receitas.filter(r => monthKey(r.data) === mKey).reduce((s,r) => s + r.valor, 0)
+              + getSalaryForMonth(mKey);
     const gas = calcGastosMes(mKey);
     const saldo = rec - gas;
     acumulado += saldo;
@@ -854,7 +855,7 @@ function renderAnualReport(year) {
     <td><b>TOTAL ${year}</b></td>
     <td class="text-right income-cell"><b>${fmt(totalRec)}</b></td>
     <td class="text-right expense-cell"><b>${fmt(totalGas)}</b></td>
-    <td class="text-right ${totalSaldo < 0 ? "expense-cell" : "income-cell'"}"><b>${fmt(totalSaldo)}</b></td>
+    <td class="text-right ${totalSaldo < 0 ? "expense-cell" : "income-cell"}"><b>${fmt(totalSaldo)}</b></td>
     <td></td>
   </tr>`;
 
