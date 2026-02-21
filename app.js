@@ -15,6 +15,7 @@ let gastos      = [];
 let reservas    = [];
 let cartoes     = [];
 let charts      = {};
+let pagamentosAntecipados = [];
 let confirmCallback = null;
 
 // ─── Utilitários ─────────────────────────────────────────────
@@ -79,6 +80,7 @@ const receitasRef = () => collection(db, "users", currentUser.uid, "receitas");
 const gastosRef   = () => collection(db, "users", currentUser.uid, "gastos");
 const reservasRef = () => collection(db, "users", currentUser.uid, "reservas");
 const cartoesRef  = () => collection(db, "users", currentUser.uid, "cartoes");
+const pagAntecRef = () => collection(db, "users", currentUser.uid, "pagamentosAntecipados");
 
 // ─── Inicialização ────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
@@ -119,7 +121,7 @@ function updateCurrentDate() {
 
 // ─── Carregamento de Dados ────────────────────────────────────
 async function loadAll() {
-  await Promise.all([loadReceitas(), loadGastos(), loadReservas(), loadCartoes()]);
+  await Promise.all([loadReceitas(), loadGastos(), loadReservas(), loadCartoes(), loadPagamentosAntecipados()]);
   renderAll();
 }
 
@@ -141,6 +143,11 @@ async function loadReservas() {
 async function loadCartoes() {
   const snap = await getDocs(cartoesRef());
   cartoes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function loadPagamentosAntecipados() {
+  const snap = await getDocs(pagAntecRef());
+  pagamentosAntecipados = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 // ─── Render Geral ─────────────────────────────────────────────
@@ -174,35 +181,17 @@ function renderDashboard() {
     totalRendimentos += rendimento;
   }
 
-  // Gastos do mês atual
-  const gastosMes = gastos.filter(g => monthKey(g.data) === mKey);
-  const totalGastosMes = gastosMes.reduce((s, g) => s + g.valor, 0);
-
-  // Gastos previstos até fim do mês (parcelas de cartão a vencer no mês)
-  let gastosPrevistosAteFinsMes = totalGastosMes;
-  const lastDay = lastDayOfMonth(year, month);
-  const endOfMonth = `${year}-${String(month).padStart(2,"0")}-${String(lastDay).padStart(2,"0")}`;
-
-  // Soma cartão parcelas futuras no mês
-  for (const g of gastos) {
-    if (g.pagamento === "cartao" && g.parcelas > 1) {
-      for (let p = 1; p < g.parcelas; p++) {
-        const parcData = addMonths(g.data, p);
-        if (monthKey(parcData) === mKey && parcData > todayStr) {
-          gastosPrevistosAteFinsMes += g.valor / g.parcelas;
-        }
-      }
-    }
-  }
+  // Gastos do mês: parcelas com vencimento neste mês (respeitando data de vencimento do cartão) + pix/dinheiro do mês
+  const totalGastosMes = calcGastosMes(mKey);
+  const gastosPrevistosAteFinsMes = totalGastosMes;
 
   const saldoLivre = saldoTotal - gastosPrevistosAteFinsMes;
 
-  // Cartão pendente (vence este mês)
+  // Cartão pendente: faturas do mês cujo vencimento ainda não passou
   let pendente = 0;
   for (const c of cartoes) {
-    const venc = cartaoVencimentoMes(c, year, month);
     const fatura = calcFaturaCartao(c.id, mKey);
-    pendente += fatura;
+    if (!isFaturaVencida(c, mKey)) pendente += fatura;
   }
 
   // Update UI
@@ -243,13 +232,13 @@ function calcRendimento(receita, upToDate) {
 }
 
 function calcFaturaCartao(cartaoId, mKey) {
+  const cartao = cartoes.find(c => c.id === cartaoId);
   return gastos
     .filter(g => g.pagamento === "cartao" && g.cartaoId === cartaoId)
     .reduce((sum, g) => {
       const parcelas = g.parcelas || 1;
-      for (let p = 0; p < parcelas; p++) {
-        const parcData = addMonths(g.data, p);
-        if (monthKey(parcData) === mKey) {
+      for (let i = 0; i < parcelas; i++) {
+        if (getInstallmentDueMonth(g, cartao, i) === mKey) {
           sum += g.valor / parcelas;
         }
       }
@@ -266,6 +255,58 @@ function addMonths(dateStr, months) {
 function cartaoVencimentoMes(cartao, year, month) {
   const dia = Math.min(cartao.vencimento, lastDayOfMonth(year, month));
   return `${year}-${String(month).padStart(2,"0")}-${String(dia).padStart(2,"0")}`;
+}
+
+// Retorna o mês de vencimento (YYYY-MM) de uma parcela (índice 0-base)
+// Regra: compra feita APÓS o dia de vencimento do cartão → 1ª parcela no mês seguinte
+function getInstallmentDueMonth(gasto, cartao, index) {
+  const purchaseDate = new Date(gasto.data + "T00:00:00");
+  const purchaseDay  = purchaseDate.getDate();
+  const dueDay       = cartao ? cartao.vencimento : 1;
+  let baseYear  = purchaseDate.getFullYear();
+  let baseMonth = purchaseDate.getMonth(); // 0-indexed
+  if (purchaseDay > dueDay) {
+    baseMonth++;
+    if (baseMonth > 11) { baseMonth = 0; baseYear++; }
+  }
+  const d = new Date(baseYear, baseMonth + index, 1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+}
+
+// Verifica se a fatura de um cartão para um mês específico já venceu
+function isFaturaVencida(cartao, mKey) {
+  const [y, m] = mKey.split("-").map(Number);
+  const dueDate = new Date(y, m - 1, cartao.vencimento || 1);
+  const agora = new Date();
+  agora.setHours(0, 0, 0, 0);
+  return agora > dueDate;
+}
+
+// Total de gastos efetivos num mês: parcelas de cartão com vencimento no mês + pix/dinheiro
+function calcGastosMes(mKey) {
+  let total = 0;
+  for (const g of gastos) {
+    if (g.pagamento !== "cartao") {
+      if (monthKey(g.data) === mKey) total += g.valor;
+    } else {
+      const cartao = cartoes.find(c => c.id === g.cartaoId);
+      const parcelas = g.parcelas || 1;
+      for (let i = 0; i < parcelas; i++) {
+        if (getInstallmentDueMonth(g, cartao, i) === mKey) {
+          total += g.valor / parcelas;
+        }
+      }
+    }
+  }
+  return total;
+}
+
+function isInstallmentAdvancePaid(gastoId, parcelaIndex) {
+  return pagamentosAntecipados.some(p => p.gastoId === gastoId && p.parcelaIndex === parcelaIndex);
+}
+
+function getAdvancePayment(gastoId, parcelaIndex) {
+  return pagamentosAntecipados.find(p => p.gastoId === gastoId && p.parcelaIndex === parcelaIndex);
 }
 
 function renderUpcoming() {
@@ -529,9 +570,38 @@ function renderGastos() {
 }
 
 function buildGastoRow(g) {
-  const cartao = cartoes.find(c => c.id === g.cartaoId);
-  const parcInfo = g.parcelas > 1 ? `<span class="tx-badge info">${g.parcelas}x ${fmt(g.valor/g.parcelas)}</span>` : "";
+  const cartao   = cartoes.find(c => c.id === g.cartaoId);
+  const parcelas = g.parcelas || 1;
   const cartaoInfo = cartao ? `<span class="tx-badge" style="background:${cartao.color}22;color:${cartao.color}"><i class="fa-solid fa-credit-card"></i> ${cartao.nome}</span>` : "";
+
+  let parcInfo = "";
+  let parcManageBtn = "";
+
+  if (g.pagamento === "cartao" && parcelas > 1) {
+    let pagas = 0;
+    for (let i = 0; i < parcelas; i++) {
+      const dueMonth = getInstallmentDueMonth(g, cartao, i);
+      const autoPaid = isFaturaVencida(cartao || { vencimento: 1 }, dueMonth);
+      if (autoPaid || isInstallmentAdvancePaid(g.id, i)) pagas++;
+    }
+    const pendentes = parcelas - pagas;
+    const valorParc = g.valor / parcelas;
+    parcInfo = `
+      <span class="tx-badge info">${parcelas}x ${fmt(valorParc)}</span>
+      <span class="tx-badge ${pagas === parcelas ? "income" : "creditor"}">${pagas}/${parcelas} pagas</span>
+      ${pendentes > 0 ? `<span class="tx-badge expense" style="font-weight:700">${fmt(pendentes * valorParc)} restante</span>` : ""}`;
+    if (pendentes > 0) {
+      parcManageBtn = `<button class="icon-btn" title="Gerenciar Parcelas" onclick="openGerenciarParcelas('${g.id}')" style="color:var(--primary);background:var(--primary-bg)"><i class="fa-solid fa-list-check"></i></button>`;
+    }
+  } else if (g.pagamento === "cartao" && parcelas === 1) {
+    const dueMonth = getInstallmentDueMonth(g, cartao, 0);
+    const autoPaid = isFaturaVencida(cartao || { vencimento: 1 }, dueMonth);
+    const advPaid  = isInstallmentAdvancePaid(g.id, 0);
+    parcInfo = autoPaid || advPaid
+      ? `<span class="tx-badge income"><i class="fa-solid fa-check"></i> Pago</span>`
+      : `<span class="tx-badge expense"><i class="fa-solid fa-clock"></i> Pendente</span>`;
+  }
+
   return `
   <div class="tx-row">
     <div class="tx-icon">${getCategoryIcon(g.categoria)}</div>
@@ -547,6 +617,7 @@ function buildGastoRow(g) {
     <div class="tx-right">
       <span class="tx-value expense">-${fmt(g.valor)}</span>
       <div class="tx-actions">
+        ${parcManageBtn}
         <button class="icon-btn edit" onclick="editItem('gasto','${g.id}')"><i class="fa-solid fa-pen"></i></button>
         <button class="icon-btn del" onclick="deleteItem('gasto','${g.id}')"><i class="fa-solid fa-trash"></i></button>
       </div>
@@ -665,9 +736,263 @@ function adjustColor(hex, amount) {
 
 // ─── RELATÓRIOS ──────────────────────────────────────────────
 function renderRelatorios() {
+  const yearSel = document.getElementById("anual-year-select");
+  const year = yearSel ? (parseInt(yearSel.value) || new Date().getFullYear()) : new Date().getFullYear();
+  renderAnualReport(year);
   renderChartEvolucao();
   renderChartTopCategorias();
   renderChartPagamento();
+}
+
+function renderAnualReport(year) {
+  const months = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  const now = new Date();
+  let totalRec = 0, totalGas = 0, acumulado = 0, rows = "";
+
+  for (let m = 0; m < 12; m++) {
+    const mKey = `${year}-${String(m+1).padStart(2,"0")}`;
+    const isFuture = year > now.getFullYear() || (year === now.getFullYear() && m > now.getMonth());
+    const rec = receitas.filter(r => monthKey(r.data) === mKey).reduce((s,r) => s + r.valor, 0);
+    const gas = calcGastosMes(mKey);
+    const saldo = rec - gas;
+    acumulado += saldo;
+    totalRec += rec; totalGas += gas;
+    rows += `<tr class="${isFuture ? "future-row" : saldo < 0 ? "neg-row" : "pos-row"}">
+      <td><span class="month-name">${months[m]}</span>${isFuture ? ` <span class="future-badge">Previsto</span>` : ""}</td>
+      <td class="text-right income-cell">${rec > 0 ? fmt(rec) : "—"}</td>
+      <td class="text-right expense-cell">${gas > 0 ? fmt(gas) : "—"}</td>
+      <td class="text-right ${saldo < 0 ? "expense-cell" : saldo > 0 ? "income-cell" : ""}"> ${saldo !== 0 ? fmt(saldo) : "—"}</td>
+      <td class="text-right ${acumulado < 0 ? "expense-cell" : "income-cell"}">${fmt(acumulado)}</td>
+    </tr>`;
+  }
+
+  const totalSaldo = totalRec - totalGas;
+  rows += `<tr class="total-row">
+    <td><b>TOTAL ${year}</b></td>
+    <td class="text-right income-cell"><b>${fmt(totalRec)}</b></td>
+    <td class="text-right expense-cell"><b>${fmt(totalGas)}</b></td>
+    <td class="text-right ${totalSaldo < 0 ? "expense-cell" : "income-cell'"}"><b>${fmt(totalSaldo)}</b></td>
+    <td></td>
+  </tr>`;
+
+  const tbody = document.getElementById("anual-table-body");
+  if (tbody) tbody.innerHTML = rows;
+
+  const summaryEl = document.getElementById("anual-summary-cards");
+  if (summaryEl) {
+    const taxa = totalRec > 0 ? ((totalSaldo / totalRec) * 100).toFixed(1) + "%" : "—";
+    summaryEl.innerHTML = `
+    <div class="anual-summary-row">
+      <div class="anual-stat income"><i class="fa-solid fa-arrow-down"></i><div><span class="anual-stat-label">Receitas ${year}</span><span class="anual-stat-value">${fmt(totalRec)}</span></div></div>
+      <div class="anual-stat expense"><i class="fa-solid fa-arrow-up"></i><div><span class="anual-stat-label">Gastos ${year}</span><span class="anual-stat-value">${fmt(totalGas)}</span></div></div>
+      <div class="anual-stat ${totalSaldo >= 0 ? "balance-pos" : "balance-neg'"}"><i class="fa-solid fa-scale-balanced"></i><div><span class="anual-stat-label">Saldo do Ano</span><span class="anual-stat-value">${fmt(totalSaldo)}</span></div></div>
+      <div class="anual-stat savings"><i class="fa-solid fa-percent"></i><div><span class="anual-stat-label">Taxa de Poupança</span><span class="anual-stat-value">${taxa}</span></div></div>
+    </div>`;
+  }
+}
+
+function exportPDF(year) {
+  const months = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  const userName = currentUser?.displayName || "Usuário";
+  const now = new Date();
+  let tableRows = "", totalRec = 0, totalGas = 0, acumulado = 0;
+
+  for (let m = 0; m < 12; m++) {
+    const mKey = `${year}-${String(m+1).padStart(2,"0")}`;
+    const rec = receitas.filter(r => monthKey(r.data) === mKey).reduce((s,r) => s + r.valor, 0);
+    const gas = calcGastosMes(mKey);
+    const saldo = rec - gas;
+    acumulado += saldo; totalRec += rec; totalGas += gas;
+    tableRows += `<tr style="background:${m%2===0?"#f8fafc":"#fff"}">
+      <td>${months[m]}</td>
+      <td style="color:#10b981;text-align:right">${rec > 0 ? fmt(rec) : "—"}</td>
+      <td style="color:#ef4444;text-align:right">${gas > 0 ? fmt(gas) : "—"}</td>
+      <td style="color:${saldo<0?"#ef4444":"#10b981"};text-align:right">${fmt(saldo)}</td>
+      <td style="color:${acumulado<0?"#ef4444":"#10b981"};text-align:right">${fmt(acumulado)}</td>
+    </tr>`;
+  }
+
+  const totalSaldo = totalRec - totalGas;
+  const taxa = totalRec > 0 ? ((totalSaldo / totalRec) * 100).toFixed(1) + "%" : "—";
+
+  const catMap = {};
+  const catLabels = { alimentacao:"Alimentação", transporte:"Transporte", moradia:"Moradia", saude:"Saúde", lazer:"Lazer", educacao:"Educação", roupas:"Roupas", tecnologia:"Tecnologia", outro:"Outro" };
+  for (const g of gastos) {
+    const d = new Date(g.data + "T00:00:00");
+    if (d.getFullYear() === year) catMap[g.categoria || "outro"] = (catMap[g.categoria || "outro"] || 0) + g.valor;
+  }
+  const catSorted = Object.entries(catMap).sort((a,b) => b[1]-a[1]).slice(0, 5);
+  const catRows = catSorted.map(([k,v]) => `<tr><td>${catLabels[k]||k}</td><td style="text-align:right;color:#ef4444;font-weight:600">${fmt(v)}</td></tr>`).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Relatório ${year} — FinanceHub</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',Arial,sans-serif;color:#1e293b;background:#fff;padding:40px;font-size:13px}
+    .header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;padding-bottom:18px;border-bottom:3px solid #6366f1}
+    .logo{font-size:22px;font-weight:800;color:#6366f1}.logo-sub{color:#64748b;font-size:12px;margin-top:4px}
+    .header-right{text-align:right;color:#64748b;font-size:12px;line-height:1.7}
+    .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+    .sbox{padding:14px;border-radius:8px;border-left:4px solid}
+    .sbox.income{background:#f0fdf4;border-color:#10b981}.sbox.expense{background:#fef2f2;border-color:#ef4444}
+    .sbox.balance{background:#eef2ff;border-color:#6366f1}.sbox.savings{background:#fffbeb;border-color:#f59e0b}
+    .sbox .label{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:600}
+    .sbox .value{font-size:18px;font-weight:800;margin-top:3px}
+    .income .value{color:#10b981}.expense .value{color:#ef4444}.balance .value{color:#6366f1}.savings .value{color:#f59e0b}
+    h2{font-size:14px;font-weight:700;margin:20px 0 10px;color:#1e293b}
+    table{width:100%;border-collapse:collapse;margin-bottom:20px}
+    th{background:#6366f1;color:#fff;padding:9px 12px;text-align:left;font-size:11px;font-weight:700;letter-spacing:.04em}
+    th:not(:first-child){text-align:right}
+    td{padding:8px 12px;border-bottom:1px solid #e2e8f0}
+    .trow td{background:#eef2ff;font-weight:700;border-top:2px solid #6366f1}
+    .footer{margin-top:28px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px}
+    @media print{body{padding:20px}}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div><div class="logo">📊 FinanceHub</div><div class="logo-sub">Relatório Financeiro Anual · ${year}</div></div>
+    <div class="header-right"><strong>${userName}</strong><br/>Gerado em ${now.toLocaleDateString("pt-BR")} às ${now.toLocaleTimeString("pt-BR")}</div>
+  </div>
+  <div class="summary-grid">
+    <div class="sbox income"><div class="label">Total Recebido</div><div class="value">${fmt(totalRec)}</div></div>
+    <div class="sbox expense"><div class="label">Total Gasto</div><div class="value">${fmt(totalGas)}</div></div>
+    <div class="sbox balance"><div class="label">Saldo do Ano</div><div class="value">${fmt(totalSaldo)}</div></div>
+    <div class="sbox savings"><div class="label">Taxa de Poupança</div><div class="value">${taxa}</div></div>
+  </div>
+  <h2>📅 Extrato Mensal</h2>
+  <table>
+    <thead><tr><th>Mês</th><th style="text-align:right">Receitas</th><th style="text-align:right">Gastos</th><th style="text-align:right">Saldo do Mês</th><th style="text-align:right">Saldo Acumulado</th></tr></thead>
+    <tbody>
+      ${tableRows}
+      <tr class="trow"><td>TOTAL ${year}</td><td style="text-align:right;color:#10b981">${fmt(totalRec)}</td><td style="text-align:right;color:#ef4444">${fmt(totalGas)}</td><td style="text-align:right;color:${totalSaldo<0?"#ef4444":"#10b981"}">${fmt(totalSaldo)}</td><td></td></tr>
+    </tbody>
+  </table>
+  ${catSorted.length > 0 ? `<h2>📊 Top Categorias de Gastos (${year})</h2><table style="width:50%"><thead><tr><th>Categoria</th><th style="text-align:right">Total</th></tr></thead><tbody>${catRows}</tbody></table>` : ""}
+  <div class="footer">FinanceHub · Controle Financeiro Pessoal · Dados protegidos pelo Firebase</div>
+</body></html>`;
+
+  const win = window.open("", "_blank", "width=900,height=700");
+  if (!win) { showToast("Permita popups nesta página para exportar o PDF", "warning"); return; }
+  win.document.write(html);
+  win.document.close();
+  win.addEventListener("load", () => setTimeout(() => win.print(), 300));
+}
+
+window.openGerenciarParcelas = (gastoId) => {
+  const g = gastos.find(x => x.id === gastoId);
+  if (!g) return;
+  const cartao = cartoes.find(c => c.id === g.cartaoId);
+  const parcelas = g.parcelas || 1;
+  const valorParcela = g.valor / parcelas;
+
+  document.getElementById("parcelas-gasto-info").innerHTML = `
+    <div class="parcela-header-card">
+      <div class="phc-row">
+        <div class="phc-left">${getCategoryIcon(g.categoria)}<div><b>${g.descricao}</b><span class="phc-meta">${cartao ? cartao.nome : "Cartão"} · Vence dia ${cartao ? cartao.vencimento : "—"}</span></div></div>
+        <div class="phc-right"><span class="phc-total">${fmt(g.valor)}</span><span class="phc-parc">${parcelas}x de ${fmt(valorParcela)}</span></div>
+      </div>
+    </div>`;
+
+  let pagas = 0;
+  let html = `<div class="parcelas-table-wrap"><table class="parcelas-table"><thead><tr><th>#</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Ação</th></tr></thead><tbody>`;
+
+  for (let i = 0; i < parcelas; i++) {
+    const dueMonth = getInstallmentDueMonth(g, cartao, i);
+    const [y, m_] = dueMonth.split("-").map(Number);
+    const dueDay = cartao ? cartao.vencimento : 1;
+    const dueDateStr = new Date(y, m_ - 1, dueDay).toLocaleDateString("pt-BR");
+    const autoPaid = isFaturaVencida(cartao || { vencimento: 1 }, dueMonth);
+    const advPay   = getAdvancePayment(g.id, i);
+    pagas += (autoPaid || advPay) ? 1 : 0;
+
+    let statusHtml, acaoHtml;
+    if (advPay) {
+      statusHtml = `<span class="tx-badge income"><i class="fa-solid fa-check"></i> Antecipado${advPay.desconto > 0 ? " (c/ desc.)" : ""}</span>`;
+      acaoHtml   = `<span style="color:var(--success);font-size:.82rem;font-weight:700">${fmt(advPay.valorPago)}</span>`;
+    } else if (autoPaid) {
+      statusHtml = `<span class="tx-badge income"><i class="fa-solid fa-check-double"></i> Debitado</span>`;
+      acaoHtml   = `<span style="color:var(--text3);font-size:.78rem">${fmt(valorParcela)}</span>`;
+    } else {
+      statusHtml = `<span class="tx-badge expense"><i class="fa-solid fa-clock"></i> Pendente</span>`;
+      acaoHtml   = `<button class="btn-primary" style="padding:5px 12px;font-size:.78rem" onclick="openPagamentoAntecipado('${g.id}',${i},${valorParcela})"><i class="fa-solid fa-money-bill-wave"></i> Antecipar</button>`;
+    }
+
+    html += `<tr class="${autoPaid || advPay ? "parcela-paid" : ""}">
+      <td class="parc-num">${i+1}/${parcelas}</td><td>${dueDateStr}</td><td>${fmt(valorParcela)}</td><td>${statusHtml}</td><td>${acaoHtml}</td>
+    </tr>`;
+  }
+
+  html += "</tbody></table></div>";
+  const pct = (pagas / parcelas) * 100;
+  html += `<div class="parcelas-progress">
+    <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:.85rem">
+      <span>${pagas} de ${parcelas} parcelas ${pagas === parcelas ? "pagas ✓" : "pagas"}</span>
+      <span style="font-weight:700;color:${pagas===parcelas?"var(--success)":"var(--danger)'}">${fmt(valorParcela * (parcelas - pagas))} restante</span>
+    </div>
+    <div class="budget-bar-bg"><div class="budget-bar-fill" style="width:${pct}%;background:${pagas===parcelas?"var(--success)":"var(--primary)"}"></div></div>
+  </div>`;
+
+  document.getElementById("parcelas-list").innerHTML = html;
+  openModal("modal-parcelas");
+};
+
+window.openPagamentoAntecipado = (gastoId, parcelaIndex, valorParcela) => {
+  const g = gastos.find(x => x.id === gastoId);
+  if (!g) return;
+  const cartao = cartoes.find(c => c.id === g.cartaoId);
+  const dueMonth = getInstallmentDueMonth(g, cartao, parcelaIndex);
+  const [y, m_] = dueMonth.split("-").map(Number);
+  const dueDateStr = new Date(y, m_ - 1, cartao ? cartao.vencimento : 1).toLocaleDateString("pt-BR");
+
+  document.getElementById("pag-parcela-info").innerHTML = `
+    <div class="parcela-header-card small">
+      <div style="font-weight:600">${g.descricao} · Parcela ${parcelaIndex + 1}/${g.parcelas || 1}</div>
+      <div class="phc-meta">Vencimento original: ${dueDateStr} · Valor: ${fmt(valorParcela)}</div>
+    </div>`;
+
+  document.getElementById("pag-data").value              = today();
+  document.getElementById("pag-valor-original").value    = fmt(valorParcela);
+  document.getElementById("pag-gasto-id").value          = gastoId;
+  document.getElementById("pag-parcela-index").value     = parcelaIndex;
+  document.getElementById("pag-valor-parcela").value     = valorParcela;
+  document.getElementById("pag-tem-desconto").checked    = false;
+  document.getElementById("desconto-wrapper").classList.add("hidden");
+  document.getElementById("pag-valor-desconto").value    = "";
+  document.getElementById("pag-desconto-calculado").value = "";
+  openModal("modal-pagamento-antecipado");
+};
+
+async function salvarPagamentoAntecipado() {
+  const gastoId    = document.getElementById("pag-gasto-id").value;
+  const parcelaIdx = parseInt(document.getElementById("pag-parcela-index").value);
+  const valorParc  = parseFloat(document.getElementById("pag-valor-parcela").value);
+  const temDesc    = document.getElementById("pag-tem-desconto").checked;
+  const dataPag    = document.getElementById("pag-data").value;
+  let valorPago = valorParc, desconto = 0;
+
+  if (temDesc) {
+    const vd = parseFloat(document.getElementById("pag-valor-desconto").value);
+    if (vd && vd > 0 && vd < valorParc) { valorPago = vd; desconto = valorParc - vd; }
+  }
+  if (!dataPag) { showToast("Informe a data do pagamento", "error"); return; }
+
+  try {
+    await addDoc(pagAntecRef(), {
+      gastoId, parcelaIndex: parcelaIdx,
+      valorOriginal: valorParc, valorPago, desconto,
+      dataPagamento: dataPag, criadoEm: new Date().toISOString()
+    });
+    showToast(`Parcela paga!${desconto > 0 ? " Desconto de " + fmt(desconto) + " registrado 🎉" : ""}`, "success");
+    closeModal("modal-pagamento-antecipado");
+    await Promise.all([loadGastos(), loadPagamentosAntecipados()]);
+    renderAll();
+    openGerenciarParcelas(gastoId);
+  } catch(e) { showToast("Erro: " + e.message, "error"); }
 }
 
 function renderChartEvolucao() {
@@ -827,6 +1152,15 @@ function populateMonthSelects() {
     const el = document.getElementById(id);
     if (el) el.innerHTML = opts.join("");
   });
+  // Seletor de ano para o relatório anual
+  const yearSel = document.getElementById("anual-year-select");
+  if (yearSel) {
+    const yearOpts = [];
+    for (let y = now.getFullYear() + 1; y >= now.getFullYear() - 4; y--) {
+      yearOpts.push(`<option value="${y}" ${y === now.getFullYear() ? "selected" : ""}>${y}</option>`);
+    }
+    yearSel.innerHTML = yearOpts.join("");
+  }
 }
 
 // ─── SALVAR RECEITA ──────────────────────────────────────────
@@ -1222,6 +1556,34 @@ function bindUIEvents() {
   });
   document.getElementById("close-notif").addEventListener("click", () => {
     document.getElementById("notif-panel").classList.add("hidden");
+  });
+
+  // Annual report year selector
+  document.getElementById("anual-year-select")?.addEventListener("change", () => {
+    const year = parseInt(document.getElementById("anual-year-select").value);
+    renderAnualReport(year);
+  });
+
+  // Export PDF
+  document.getElementById("btn-export-pdf")?.addEventListener("click", () => {
+    const year = parseInt(document.getElementById("anual-year-select")?.value || new Date().getFullYear());
+    exportPDF(year);
+  });
+
+  // Advance payment save
+  document.getElementById("btn-confirmar-pagamento")?.addEventListener("click", salvarPagamentoAntecipado);
+
+  // Toggle desconto no modal pagamento antecipado
+  document.getElementById("pag-tem-desconto")?.addEventListener("change", e => {
+    document.getElementById("desconto-wrapper").classList.toggle("hidden", !e.target.checked);
+  });
+
+  // Auto-calc desconto
+  document.getElementById("pag-valor-desconto")?.addEventListener("input", () => {
+    const valorParc = parseFloat(document.getElementById("pag-valor-parcela").value) || 0;
+    const valorCom  = parseFloat(document.getElementById("pag-valor-desconto").value) || 0;
+    const desconto  = valorParc - valorCom;
+    document.getElementById("pag-desconto-calculado").value = desconto > 0 ? fmt(desconto) : "R$ 0,00";
   });
 
   // Form submits com Enter

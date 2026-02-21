@@ -340,6 +340,34 @@
         <div class="page-header">
           <h2>Relatórios</h2>
         </div>
+
+        <!-- PANORAMA ANUAL -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-calendar"></i> Panorama Anual</h3>
+            <div class="header-actions">
+              <select id="anual-year-select" class="select-input"></select>
+              <button class="btn-primary" id="btn-export-pdf">
+                <i class="fa-solid fa-file-pdf"></i> Exportar PDF
+              </button>
+            </div>
+          </div>
+          <div id="anual-summary-cards"></div>
+          <div class="anual-table-wrapper">
+            <table class="anual-table">
+              <thead>
+                <tr>
+                  <th>Mês</th>
+                  <th class="text-right">Receitas</th>
+                  <th class="text-right">Gastos</th>
+                  <th class="text-right">Saldo do Mês</th>
+                  <th class="text-right">Acumulado</th>
+                </tr>
+              </thead>
+              <tbody id="anual-table-body"></tbody>
+            </table>
+          </div>
+        </div>
         <div class="charts-row">
           <div class="card chart-card full-width">
             <div class="card-header"><h3><i class="fa-solid fa-chart-line"></i> Evolução do Saldo (6 meses)</h3></div>
@@ -618,6 +646,76 @@
     <div class="modal-footer">
       <button class="btn-secondary" data-modal="modal-reserva">Cancelar</button>
       <button class="btn-primary" id="btn-save-reserva"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL GERENCIAR PARCELAS -->
+<div class="modal-overlay hidden" id="modal-parcelas">
+  <div class="modal large">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-list-check"></i> Gerenciar Parcelas</h3>
+      <button class="modal-close" data-modal="modal-parcelas"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <div id="parcelas-gasto-info"></div>
+      <div id="parcelas-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-modal="modal-parcelas">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PAGAMENTO ANTECIPADO -->
+<div class="modal-overlay hidden" id="modal-pagamento-antecipado">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-money-bill-wave"></i> Pagar Parcela Antecipada</h3>
+      <button class="modal-close" data-modal="modal-pagamento-antecipado"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <div id="pag-parcela-info"></div>
+      <form id="form-pagamento-antecipado" class="form-grid">
+        <div class="form-group">
+          <label>Data do Pagamento</label>
+          <input type="date" id="pag-data" required/>
+        </div>
+        <div class="form-group">
+          <label>Valor Original da Parcela</label>
+          <input type="text" id="pag-valor-original" readonly style="opacity:.6"/>
+        </div>
+        <div class="form-group full toggle-group">
+          <label class="toggle-label">
+            <span><i class="fa-solid fa-tag"></i> Houve desconto no pagamento antecipado?</span>
+            <div class="toggle-switch">
+              <input type="checkbox" id="pag-tem-desconto"/>
+              <span class="slider"></span>
+            </div>
+          </label>
+          <div id="desconto-wrapper" class="hidden mt-8">
+            <div class="form-grid inner">
+              <div class="form-group">
+                <label>Valor Pago com Desconto (R$)</label>
+                <input type="number" id="pag-valor-desconto" step="0.01" min="0" placeholder="0,00"/>
+              </div>
+              <div class="form-group">
+                <label>Desconto Obtido</label>
+                <input type="text" id="pag-desconto-calculado" readonly style="color:var(--success);font-weight:700"/>
+              </div>
+            </div>
+          </div>
+        </div>
+        <input type="hidden" id="pag-gasto-id"/>
+        <input type="hidden" id="pag-parcela-index"/>
+        <input type="hidden" id="pag-valor-parcela"/>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-modal="modal-pagamento-antecipado">Cancelar</button>
+      <button class="btn-primary" id="btn-confirmar-pagamento">
+        <i class="fa-solid fa-check"></i> Confirmar Pagamento
+      </button>
     </div>
   </div>
 </div>
