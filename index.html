@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FinanceHub — Controle Financeiro</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Firebase SDKs -->
+  <script type="module" src="firebase-config.js"></script>
+  <script type="module" src="auth.js"></script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+
+<!-- ===== LOGIN SCREEN ===== -->
+<div id="login-screen" class="login-screen">
+  <div class="login-bg">
+    <div class="login-blob blob1"></div>
+    <div class="login-blob blob2"></div>
+    <div class="login-blob blob3"></div>
+  </div>
+  <div class="login-card">
+    <div class="login-logo">
+      <i class="fa-solid fa-chart-line"></i>
+    </div>
+    <h1 class="login-title">FinanceHub</h1>
+    <p class="login-subtitle">Seu controle financeiro inteligente</p>
+    <div class="login-features">
+      <div class="feature-item"><i class="fa-solid fa-shield-halved"></i> Dados seguros no Google</div>
+      <div class="feature-item"><i class="fa-solid fa-chart-pie"></i> Dashboard em tempo real</div>
+      <div class="feature-item"><i class="fa-solid fa-bolt"></i> Rendimentos automáticos</div>
+    </div>
+    <button id="google-login-btn" class="google-btn">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="22"/>
+      Entrar com Google
+    </button>
+    <p class="login-hint">Uso individual · Dados sincronizados na nuvem</p>
+  </div>
+</div>
+
+<!-- ===== MAIN APP ===== -->
+<div id="app" class="app hidden">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <i class="fa-solid fa-chart-line"></i>
+        <span>FinanceHub</span>
+      </div>
+      <button class="sidebar-toggle" id="sidebar-toggle"><i class="fa-solid fa-bars"></i></button>
+    </div>
+
+    <div class="user-card">
+      <img id="user-photo" src="" alt="foto" class="user-avatar"/>
+      <div class="user-info">
+        <span id="user-name" class="user-name"></span>
+        <span class="user-tag">Conta pessoal</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-page="dashboard">
+        <i class="fa-solid fa-gauge-high"></i><span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item" data-page="receitas">
+        <i class="fa-solid fa-arrow-trend-up"></i><span>Receitas</span>
+        <span class="nav-badge" id="badge-receitas">0</span>
+      </a>
+      <a href="#" class="nav-item" data-page="gastos">
+        <i class="fa-solid fa-arrow-trend-down"></i><span>Gastos</span>
+        <span class="nav-badge danger" id="badge-gastos">0</span>
+      </a>
+      <a href="#" class="nav-item" data-page="reservas">
+        <i class="fa-solid fa-piggy-bank"></i><span>Reservas</span>
+      </a>
+      <a href="#" class="nav-item" data-page="cartoes">
+        <i class="fa-solid fa-credit-card"></i><span>Cartões</span>
+      </a>
+      <a href="#" class="nav-item" data-page="relatorios">
+        <i class="fa-solid fa-file-chart-column"></i><span>Relatórios</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button id="logout-btn" class="logout-btn">
+        <i class="fa-solid fa-right-from-bracket"></i><span>Sair</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content" id="main-content">
+
+    <!-- TOP BAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="mobile-menu-btn" id="mobile-menu-btn"><i class="fa-solid fa-bars"></i></button>
+        <div class="breadcrumb">
+          <span id="page-title">Dashboard</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="date-badge">
+          <i class="fa-regular fa-calendar"></i>
+          <span id="current-date"></span>
+        </div>
+        <div class="notif-btn" id="notif-btn">
+          <i class="fa-regular fa-bell"></i>
+          <span class="notif-dot" id="notif-dot" style="display:none"></span>
+        </div>
+      </div>
+    </header>
+
+    <!-- NOTIFICATION PANEL -->
+    <div class="notif-panel hidden" id="notif-panel">
+      <div class="notif-header"><b>Notificações</b><button id="close-notif"><i class="fa-solid fa-xmark"></i></button></div>
+      <div id="notif-list" class="notif-list"></div>
+    </div>
+
+    <!-- PAGES -->
+    <div class="pages">
+
+      <!-- ========== DASHBOARD ========== -->
+      <section class="page active" id="page-dashboard">
+        <div class="page-header">
+          <h2>Visão Geral <span class="month-label" id="dash-month"></span></h2>
+          <div class="header-actions">
+            <select id="dash-month-select" class="select-input"></select>
+          </div>
+        </div>
+
+        <!-- SUMMARY CARDS -->
+        <div class="summary-grid">
+          <div class="summary-card income">
+            <div class="sc-icon"><i class="fa-solid fa-arrow-down"></i></div>
+            <div class="sc-info">
+              <span class="sc-label">Saldo Atual</span>
+              <span class="sc-value" id="dash-saldo">R$ 0,00</span>
+              <span class="sc-sub" id="dash-saldo-rendimento">+R$ 0,00 em rendimentos</span>
+            </div>
+          </div>
+          <div class="summary-card expense">
+            <div class="sc-icon"><i class="fa-solid fa-arrow-up"></i></div>
+            <div class="sc-info">
+              <span class="sc-label">Gastos do Mês</span>
+              <span class="sc-value" id="dash-gastos">R$ 0,00</span>
+              <span class="sc-sub" id="dash-gastos-previstos">Previstos até fim do mês</span>
+            </div>
+          </div>
+          <div class="summary-card free">
+            <div class="sc-icon"><i class="fa-solid fa-wallet"></i></div>
+            <div class="sc-info">
+              <span class="sc-label">Saldo Livre</span>
+              <span class="sc-value" id="dash-livre">R$ 0,00</span>
+              <span class="sc-sub">Saldo - Gastos previstos</span>
+            </div>
+          </div>
+          <div class="summary-card pending">
+            <div class="sc-icon"><i class="fa-solid fa-clock"></i></div>
+            <div class="sc-info">
+              <span class="sc-label">A Pagar (Cartão)</span>
+              <span class="sc-value" id="dash-pendente">R$ 0,00</span>
+              <span class="sc-sub" id="dash-pendente-sub">Vencimentos próximos</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- PROGRESS BAR -->
+        <div class="budget-tracker card">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-sliders"></i> Orçamento do Mês</h3>
+          </div>
+          <div class="budget-bar-container">
+            <div class="budget-labels">
+              <span>Gasto: <b id="budget-spent">R$ 0,00</b></span>
+              <span>Disponível: <b id="budget-available">R$ 0,00</b></span>
+            </div>
+            <div class="budget-bar-bg">
+              <div class="budget-bar-fill" id="budget-bar-fill"></div>
+            </div>
+            <div class="budget-percent" id="budget-percent">0% utilizado</div>
+          </div>
+        </div>
+
+        <!-- CHARTS ROW -->
+        <div class="charts-row">
+          <div class="card chart-card">
+            <div class="card-header"><h3><i class="fa-solid fa-chart-bar"></i> Receitas vs Gastos</h3></div>
+            <canvas id="chart-receita-gasto" height="240"></canvas>
+          </div>
+          <div class="card chart-card">
+            <div class="card-header"><h3><i class="fa-solid fa-chart-pie"></i> Categorias de Gastos</h3></div>
+            <canvas id="chart-categorias" height="240"></canvas>
+          </div>
+        </div>
+
+        <!-- UPCOMING PAYMENTS -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-calendar-days"></i> Vencimentos Próximos</h3>
+          </div>
+          <div id="upcoming-list" class="upcoming-list"></div>
+        </div>
+
+        <!-- RECENT TRANSACTIONS -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-list"></i> Últimas Movimentações</h3>
+            <button class="btn-text" data-page="gastos">Ver todas</button>
+          </div>
+          <div id="recent-transactions" class="transaction-list"></div>
+        </div>
+      </section>
+
+      <!-- ========== RECEITAS ========== -->
+      <section class="page hidden" id="page-receitas">
+        <div class="page-header">
+          <h2>Receitas</h2>
+          <button class="btn-primary" id="btn-add-receita">
+            <i class="fa-solid fa-plus"></i> Nova Receita
+          </button>
+        </div>
+
+        <!-- RECEITAS SUMMARY -->
+        <div class="summary-grid small">
+          <div class="summary-card income">
+            <div class="sc-icon"><i class="fa-solid fa-coins"></i></div>
+            <div class="sc-info">
+              <span class="sc-label">Total Recebido</span>
+              <span class="sc-value" id="rec-total">R$ 0,00</span>
+            </div>
+          </div>
+          <div class="summary-card yield">
+            <div class="sc-icon"><i class="fa-solid fa-seedling"></i></div>
+            <div class="sc-info">
+              <span class="sc-label">Total em Rendimentos</span>
+              <span class="sc-value" id="rec-rendimentos">R$ 0,00</span>
+            </div>
+          </div>
+          <div class="summary-card reserve">
+            <div class="sc-icon"><i class="fa-solid fa-vault"></i></div>
+            <div class="sc-info">
+              <span class="sc-label">Em Reservas</span>
+              <span class="sc-value" id="rec-reservas">R$ 0,00</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Todas as Receitas</h3>
+            <div class="filter-row">
+              <select id="filter-receita-mes" class="select-input small"></select>
+            </div>
+          </div>
+          <div id="receitas-list" class="transaction-list"></div>
+        </div>
+      </section>
+
+      <!-- ========== GASTOS ========== -->
+      <section class="page hidden" id="page-gastos">
+        <div class="page-header">
+          <h2>Gastos</h2>
+          <button class="btn-primary" id="btn-add-gasto">
+            <i class="fa-solid fa-plus"></i> Novo Gasto
+          </button>
+        </div>
+
+        <div class="summary-grid small">
+          <div class="summary-card expense">
+            <div class="sc-icon"><i class="fa-solid fa-receipt"></i></div>
+            <div class="sc-info">
+              <span class="sc-label">Total Gasto</span>
+              <span class="sc-value" id="gasto-total">R$ 0,00</span>
+            </div>
+          </div>
+          <div class="summary-card pending">
+            <div class="sc-icon"><i class="fa-solid fa-credit-card"></i></div>
+            <div class="sc-info">
+              <span class="sc-label">Cartão Pendente</span>
+              <span class="sc-value" id="gasto-cartao">R$ 0,00</span>
+            </div>
+          </div>
+          <div class="summary-card info">
+            <div class="sc-icon"><i class="fa-brands fa-pix"></i></div>
+            <div class="sc-info">
+              <span class="sc-label">Pix / Dinheiro</span>
+              <span class="sc-value" id="gasto-outros">R$ 0,00</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Todos os Gastos</h3>
+            <div class="filter-row">
+              <select id="filter-gasto-mes" class="select-input small"></select>
+              <select id="filter-gasto-tipo" class="select-input small">
+                <option value="">Todos os tipos</option>
+                <option value="cartao">Cartão</option>
+                <option value="pix">Pix</option>
+                <option value="dinheiro">Dinheiro</option>
+              </select>
+            </div>
+          </div>
+          <div id="gastos-list" class="transaction-list"></div>
+        </div>
+      </section>
+
+      <!-- ========== RESERVAS ========== -->
+      <section class="page hidden" id="page-reservas">
+        <div class="page-header">
+          <h2>Reservas</h2>
+          <button class="btn-primary" id="btn-add-reserva">
+            <i class="fa-solid fa-plus"></i> Nova Reserva
+          </button>
+        </div>
+
+        <div id="reservas-grid" class="reservas-grid"></div>
+      </section>
+
+      <!-- ========== CARTÕES ========== -->
+      <section class="page hidden" id="page-cartoes">
+        <div class="page-header">
+          <h2>Cartões de Crédito</h2>
+          <button class="btn-primary" id="btn-add-cartao">
+            <i class="fa-solid fa-plus"></i> Novo Cartão
+          </button>
+        </div>
+        <div id="cartoes-grid" class="cartoes-grid"></div>
+      </section>
+
+      <!-- ========== RELATÓRIOS ========== -->
+      <section class="page hidden" id="page-relatorios">
+        <div class="page-header">
+          <h2>Relatórios</h2>
+        </div>
+        <div class="charts-row">
+          <div class="card chart-card full-width">
+            <div class="card-header"><h3><i class="fa-solid fa-chart-line"></i> Evolução do Saldo (6 meses)</h3></div>
+            <canvas id="chart-evolucao" height="220"></canvas>
+          </div>
+        </div>
+        <div class="charts-row">
+          <div class="card chart-card">
+            <div class="card-header"><h3>Maiores Gastos por Categoria</h3></div>
+            <canvas id="chart-top-categorias" height="300"></canvas>
+          </div>
+          <div class="card chart-card">
+            <div class="card-header"><h3>Distribuição por Forma de Pagamento</h3></div>
+            <canvas id="chart-pagamento" height="300"></canvas>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /pages -->
+  </main>
+</div>
+
+<!-- =================== MODALS =================== -->
+
+<!-- MODAL RECEITA -->
+<div class="modal-overlay hidden" id="modal-receita">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-receita-title"><i class="fa-solid fa-arrow-trend-up"></i> Nova Receita</h3>
+      <button class="modal-close" data-modal="modal-receita"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <form id="form-receita" class="form-grid">
+        <div class="form-group full">
+          <label>Descrição / Fonte</label>
+          <input type="text" id="rec-descricao" placeholder="Ex: Salário, Freelance, Dividendos..." required/>
+        </div>
+        <div class="form-group">
+          <label>Valor (R$)</label>
+          <input type="number" id="rec-valor" step="0.01" min="0.01" placeholder="0,00" required/>
+        </div>
+        <div class="form-group">
+          <label>Data de Recebimento</label>
+          <input type="date" id="rec-data" required/>
+        </div>
+        <div class="form-group full">
+          <label>Rendimento Diário (%)</label>
+          <div class="input-hint-row">
+            <input type="number" id="rec-rendimento" step="0.001" min="0" placeholder="0.000" />
+            <span class="input-hint">Aplicado apenas em dias úteis (Seg–Sex)</span>
+          </div>
+        </div>
+        <div class="form-group full toggle-group">
+          <label class="toggle-label">
+            <span>Valor em Reserva?</span>
+            <div class="toggle-switch">
+              <input type="checkbox" id="rec-reserva"/>
+              <span class="slider"></span>
+            </div>
+          </label>
+          <div id="reserva-select-wrapper" class="hidden mt-8">
+            <label>Reserva</label>
+            <select id="rec-reserva-nome" class="select-input"></select>
+          </div>
+        </div>
+        <div class="form-group full">
+          <label>Observações</label>
+          <textarea id="rec-obs" placeholder="Opcional..." rows="2"></textarea>
+        </div>
+        <input type="hidden" id="rec-edit-id"/>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-modal="modal-receita">Cancelar</button>
+      <button class="btn-primary" id="btn-save-receita"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL GASTO -->
+<div class="modal-overlay hidden" id="modal-gasto">
+  <div class="modal large">
+    <div class="modal-header">
+      <h3 id="modal-gasto-title"><i class="fa-solid fa-arrow-trend-down"></i> Novo Gasto</h3>
+      <button class="modal-close" data-modal="modal-gasto"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <form id="form-gasto" class="form-grid">
+        <div class="form-group full">
+          <label>Descrição</label>
+          <input type="text" id="gas-descricao" placeholder="Ex: Supermercado, Aluguel..." required/>
+        </div>
+        <div class="form-group">
+          <label>Valor (R$)</label>
+          <input type="number" id="gas-valor" step="0.01" min="0.01" placeholder="0,00" required/>
+        </div>
+        <div class="form-group">
+          <label>Data</label>
+          <input type="date" id="gas-data" required/>
+        </div>
+        <div class="form-group full">
+          <label>Categoria</label>
+          <div class="category-selector" id="category-selector">
+            <button type="button" class="cat-btn active" data-cat="alimentacao"><i class="fa-solid fa-utensils"></i> Alimentação</button>
+            <button type="button" class="cat-btn" data-cat="transporte"><i class="fa-solid fa-car"></i> Transporte</button>
+            <button type="button" class="cat-btn" data-cat="moradia"><i class="fa-solid fa-house"></i> Moradia</button>
+            <button type="button" class="cat-btn" data-cat="saude"><i class="fa-solid fa-heart-pulse"></i> Saúde</button>
+            <button type="button" class="cat-btn" data-cat="lazer"><i class="fa-solid fa-gamepad"></i> Lazer</button>
+            <button type="button" class="cat-btn" data-cat="educacao"><i class="fa-solid fa-graduation-cap"></i> Educação</button>
+            <button type="button" class="cat-btn" data-cat="roupas"><i class="fa-solid fa-shirt"></i> Roupas</button>
+            <button type="button" class="cat-btn" data-cat="tecnologia"><i class="fa-solid fa-laptop"></i> Tecnologia</button>
+            <button type="button" class="cat-btn" data-cat="outro"><i class="fa-solid fa-ellipsis"></i> Outro</button>
+          </div>
+          <input type="hidden" id="gas-categoria" value="alimentacao"/>
+        </div>
+        <div class="form-group full">
+          <label>Forma de Pagamento</label>
+          <div class="payment-tabs" id="payment-tabs">
+            <button type="button" class="pay-tab active" data-pay="cartao"><i class="fa-solid fa-credit-card"></i> Cartão</button>
+            <button type="button" class="pay-tab" data-pay="pix"><i class="fa-brands fa-pix"></i> Pix</button>
+            <button type="button" class="pay-tab" data-pay="dinheiro"><i class="fa-solid fa-money-bill-wave"></i> Dinheiro</button>
+          </div>
+          <input type="hidden" id="gas-pagamento" value="cartao"/>
+        </div>
+
+        <!-- CARTÃO FIELDS -->
+        <div id="cartao-fields" class="form-group-card full">
+          <div class="form-grid inner">
+            <div class="form-group">
+              <label>Cartão</label>
+              <select id="gas-cartao-id" class="select-input"></select>
+            </div>
+            <div class="form-group">
+              <label>Parcelas</label>
+              <select id="gas-parcelas" class="select-input">
+                <option value="1">À vista (1x)</option>
+                <option value="2">2x</option>
+                <option value="3">3x</option>
+                <option value="4">4x</option>
+                <option value="5">5x</option>
+                <option value="6">6x</option>
+                <option value="10">10x</option>
+                <option value="12">12x</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- PAYEE / PESSOA -->
+        <div class="form-group full toggle-group">
+          <label class="toggle-label">
+            <span>Pagamento a alguém específico?</span>
+            <div class="toggle-switch">
+              <input type="checkbox" id="gas-tem-credor"/>
+              <span class="slider"></span>
+            </div>
+          </label>
+          <div id="credor-wrapper" class="hidden mt-8">
+            <div class="form-grid inner">
+              <div class="form-group">
+                <label>Nome do Credor</label>
+                <input type="text" id="gas-credor" placeholder="Nome de quem vai receber"/>
+              </div>
+              <div class="form-group">
+                <label>Contato (opcional)</label>
+                <input type="text" id="gas-credor-contato" placeholder="Telefone / e-mail"/>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group full">
+          <label>Observações</label>
+          <textarea id="gas-obs" placeholder="Opcional..." rows="2"></textarea>
+        </div>
+        <input type="hidden" id="gas-edit-id"/>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-modal="modal-gasto">Cancelar</button>
+      <button class="btn-primary" id="btn-save-gasto"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CARTÃO -->
+<div class="modal-overlay hidden" id="modal-cartao">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-credit-card"></i> Cadastrar Cartão</h3>
+      <button class="modal-close" data-modal="modal-cartao"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <form id="form-cartao" class="form-grid">
+        <div class="form-group full">
+          <label>Nome do Cartão</label>
+          <input type="text" id="cart-nome" placeholder="Ex: Nubank, Itaú Visa..." required/>
+        </div>
+        <div class="form-group">
+          <label>Limite (R$)</label>
+          <input type="number" id="cart-limite" step="0.01" min="0" placeholder="0,00"/>
+        </div>
+        <div class="form-group">
+          <label>Dia de Vencimento</label>
+          <input type="number" id="cart-vencimento" min="1" max="31" placeholder="Ex: 10" required/>
+        </div>
+        <div class="form-group full">
+          <label>Cor do Cartão</label>
+          <div class="color-picker" id="cart-color-picker">
+            <span class="color-opt active" data-color="#6366f1" style="background:#6366f1"></span>
+            <span class="color-opt" data-color="#0ea5e9" style="background:#0ea5e9"></span>
+            <span class="color-opt" data-color="#10b981" style="background:#10b981"></span>
+            <span class="color-opt" data-color="#f59e0b" style="background:#f59e0b"></span>
+            <span class="color-opt" data-color="#ef4444" style="background:#ef4444"></span>
+            <span class="color-opt" data-color="#8b5cf6" style="background:#8b5cf6"></span>
+            <span class="color-opt" data-color="#ec4899" style="background:#ec4899"></span>
+            <span class="color-opt" data-color="#14b8a6" style="background:#14b8a6"></span>
+          </div>
+          <input type="hidden" id="cart-color" value="#6366f1"/>
+        </div>
+        <input type="hidden" id="cart-edit-id"/>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-modal="modal-cartao">Cancelar</button>
+      <button class="btn-primary" id="btn-save-cartao"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RESERVA -->
+<div class="modal-overlay hidden" id="modal-reserva">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-piggy-bank"></i> Nova Reserva</h3>
+      <button class="modal-close" data-modal="modal-reserva"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <form id="form-reserva" class="form-grid">
+        <div class="form-group full">
+          <label>Nome da Reserva</label>
+          <input type="text" id="res-nome" placeholder="Ex: Reserva de emergência, Viagem..." required/>
+        </div>
+        <div class="form-group">
+          <label>Meta (R$)</label>
+          <input type="number" id="res-meta" step="0.01" min="0" placeholder="0,00"/>
+        </div>
+        <div class="form-group">
+          <label>Ícone</label>
+          <select id="res-icone" class="select-input">
+            <option value="piggy-bank">🐷 Porquinho</option>
+            <option value="plane">✈️ Viagem</option>
+            <option value="house">🏠 Casa</option>
+            <option value="car">🚗 Carro</option>
+            <option value="graduation-cap">🎓 Educação</option>
+            <option value="heart">❤️ Saúde</option>
+            <option value="gem">💎 Investimento</option>
+            <option value="shield-halved">🛡️ Emergência</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Cor</label>
+          <div class="color-picker" id="res-color-picker">
+            <span class="color-opt active" data-color="#10b981" style="background:#10b981"></span>
+            <span class="color-opt" data-color="#6366f1" style="background:#6366f1"></span>
+            <span class="color-opt" data-color="#f59e0b" style="background:#f59e0b"></span>
+            <span class="color-opt" data-color="#ef4444" style="background:#ef4444"></span>
+            <span class="color-opt" data-color="#0ea5e9" style="background:#0ea5e9"></span>
+            <span class="color-opt" data-color="#8b5cf6" style="background:#8b5cf6"></span>
+          </div>
+          <input type="hidden" id="res-color" value="#10b981"/>
+        </div>
+        <input type="hidden" id="res-edit-id"/>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-modal="modal-reserva">Cancelar</button>
+      <button class="btn-primary" id="btn-save-reserva"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM DIALOG -->
+<div class="modal-overlay hidden" id="modal-confirm">
+  <div class="modal small">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-triangle-exclamation"></i> Confirmar</h3>
+    </div>
+    <div class="modal-body">
+      <p id="confirm-msg">Tem certeza que deseja excluir?</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-modal="modal-confirm">Cancelar</button>
+      <button class="btn-danger" id="btn-confirm-ok">Excluir</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast-container" class="toast-container"></div>
+
+</body>
+</html>
