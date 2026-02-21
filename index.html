@@ -226,6 +226,19 @@
           </button>
         </div>
 
+        <!-- SALÁRIO MENSAL -->
+        <div class="card salary-config-card">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-briefcase"></i> Salário Mensal Recorrente</h3>
+            <button class="btn-secondary" id="btn-config-salario" style="padding:8px 18px;font-size:.85rem">
+              <i class="fa-solid fa-gear"></i> Configurar
+            </button>
+          </div>
+          <div id="salario-config-info">
+            <div class="empty-state"><p>Nenhum salário mensal configurado ainda</p></div>
+          </div>
+        </div>
+
         <!-- RECEITAS SUMMARY -->
         <div class="summary-grid small">
           <div class="summary-card income">
@@ -501,17 +514,9 @@
               <select id="gas-cartao-id" class="select-input"></select>
             </div>
             <div class="form-group">
-              <label>Parcelas</label>
-              <select id="gas-parcelas" class="select-input">
-                <option value="1">À vista (1x)</option>
-                <option value="2">2x</option>
-                <option value="3">3x</option>
-                <option value="4">4x</option>
-                <option value="5">5x</option>
-                <option value="6">6x</option>
-                <option value="10">10x</option>
-                <option value="12">12x</option>
-              </select>
+              <label>Parcelas <span style="color:var(--text3);font-weight:400;font-size:.8rem">(digite qualquer número)</span></label>
+              <input type="number" id="gas-parcelas" class="input" min="1" max="360" value="1" step="1" placeholder="1"/>
+              <span id="gas-parcelas-preview" class="parcelas-preview-text"></span>
             </div>
           </div>
         </div>
@@ -716,6 +721,46 @@
       <button class="btn-primary" id="btn-confirmar-pagamento">
         <i class="fa-solid fa-check"></i> Confirmar Pagamento
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL SALÁRIO MENSAL -->
+<div class="modal-overlay hidden" id="modal-salario">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-briefcase"></i> Salário Mensal Fixo</h3>
+      <button class="modal-close" data-modal="modal-salario"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--text2);font-size:.88rem;margin-bottom:16px">Configure um valor recebido mensalmente. Ele é somado no dashboard a partir do dia de recebimento de cada mês, e contabilizado em todos os meses no relatório anual.</p>
+      <form id="form-salario" class="form-grid">
+        <div class="form-group full toggle-group">
+          <label class="toggle-label">
+            <span><i class="fa-solid fa-toggle-on"></i> Ativar salário mensal?</span>
+            <div class="toggle-switch">
+              <input type="checkbox" id="sal-ativo" checked/>
+              <span class="slider"></span>
+            </div>
+          </label>
+        </div>
+        <div class="form-group">
+          <label>Valor (R$)</label>
+          <input type="number" id="sal-valor" step="0.01" min="0.01" placeholder="0,00"/>
+        </div>
+        <div class="form-group">
+          <label>Dia de recebimento</label>
+          <input type="number" id="sal-dia" min="1" max="31" value="5"/>
+        </div>
+        <div class="form-group full">
+          <label>Descrição / Fonte (opcional)</label>
+          <input type="text" id="sal-obs" placeholder="Ex: Salário empresa XYZ"/>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-modal="modal-salario">Cancelar</button>
+      <button class="btn-primary" id="btn-save-salario"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
     </div>
   </div>
 </div>

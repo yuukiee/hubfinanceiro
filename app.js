@@ -16,6 +16,7 @@ let reservas    = [];
 let cartoes     = [];
 let charts      = {};
 let pagamentosAntecipados = [];
+let salarioConfig     = null;
 let confirmCallback = null;
 
 // ─── Utilitários ─────────────────────────────────────────────
@@ -80,7 +81,8 @@ const receitasRef = () => collection(db, "users", currentUser.uid, "receitas");
 const gastosRef   = () => collection(db, "users", currentUser.uid, "gastos");
 const reservasRef = () => collection(db, "users", currentUser.uid, "reservas");
 const cartoesRef  = () => collection(db, "users", currentUser.uid, "cartoes");
-const pagAntecRef = () => collection(db, "users", currentUser.uid, "pagamentosAntecipados");
+const pagAntecRef  = () => collection(db, "users", currentUser.uid, "pagamentosAntecipados");
+const salarioRef   = () => doc(db, "users", currentUser.uid, "config", "salarioMensal");
 
 // ─── Inicialização ────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
@@ -121,7 +123,7 @@ function updateCurrentDate() {
 
 // ─── Carregamento de Dados ────────────────────────────────────
 async function loadAll() {
-  await Promise.all([loadReceitas(), loadGastos(), loadReservas(), loadCartoes(), loadPagamentosAntecipados()]);
+  await Promise.all([loadReceitas(), loadGastos(), loadReservas(), loadCartoes(), loadPagamentosAntecipados(), loadSalarioConfig()]);
   renderAll();
 }
 
@@ -150,10 +152,28 @@ async function loadPagamentosAntecipados() {
   pagamentosAntecipados = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+async function loadSalarioConfig() {
+  try {
+    const snap = await getDoc(salarioRef());
+    salarioConfig = snap.exists() ? snap.data() : null;
+  } catch { salarioConfig = null; }
+}
+
+// Retorna o valor do salário que deve ser contabilizado em um dado mês (YYYY-MM)
+function getSalaryForMonth(mKey) {
+  if (!salarioConfig || !salarioConfig.ativo || !salarioConfig.valor) return 0;
+  const now = new Date();
+  const curMKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+  if (mKey < curMKey) return salarioConfig.valor;   // mês passado — já recebido
+  if (mKey === curMKey) return now.getDate() >= salarioConfig.dia ? salarioConfig.valor : 0;
+  return salarioConfig.valor;                        // mês futuro — previsto
+}
+
 // ─── Render Geral ─────────────────────────────────────────────
 function renderAll() {
   renderDashboard();
   renderReceitas();
+  renderSalarioConfig();
   renderGastos();
   renderReservas();
   renderCartoes();
@@ -180,6 +200,10 @@ function renderDashboard() {
     saldoTotal += valorAtual;
     totalRendimentos += rendimento;
   }
+
+  // Salário mensal: somar apenas se o dia de recebimento já passou neste mês
+  const salarioMes = getSalaryForMonth(mKey);
+  saldoTotal += salarioMes;
 
   // Gastos do mês: parcelas com vencimento neste mês (respeitando data de vencimento do cartão) + pix/dinheiro do mês
   const totalGastosMes = calcGastosMes(mKey);
@@ -542,6 +566,65 @@ function renderReceitas() {
   }).join("");
 }
 
+function renderSalarioConfig() {
+  const el = document.getElementById("salario-config-info");
+  if (!el) return;
+  if (!salarioConfig || !salarioConfig.valor) {
+    el.innerHTML = `<div class="empty-state"><p>Nenhum salário mensal configurado ainda</p></div>`;
+    return;
+  }
+  const now = new Date();
+  const dia = salarioConfig.dia || 1;
+  const recebidoEsteMes = now.getDate() >= dia;
+  const proximoPag = new Date(now.getFullYear(), now.getMonth() + (recebidoEsteMes ? 1 : 0), dia);
+  el.innerHTML = `
+    <div class="salary-info-row">
+      <div class="sal-item">
+        <span class="sal-label"><i class="fa-solid fa-money-bill-wave"></i> Valor Mensal</span>
+        <span class="sal-value income-cell">${fmt(salarioConfig.valor)}</span>
+      </div>
+      <div class="sal-item">
+        <span class="sal-label"><i class="fa-solid fa-calendar-day"></i> Dia de Recebimento</span>
+        <span class="sal-value">Todo dia <b>${dia}</b></span>
+      </div>
+      <div class="sal-item">
+        <span class="sal-label"><i class="fa-solid fa-clock"></i> Este mês</span>
+        <span class="sal-value ${recebidoEsteMes ? "income-cell" : ""}">
+          ${recebidoEsteMes
+            ? `<i class="fa-solid fa-check-circle"></i> Recebido`
+            : `<i class="fa-solid fa-hourglass-half"></i> Aguardando (dia ${dia})`}
+        </span>
+      </div>
+      <div class="sal-item">
+        <span class="sal-label"><i class="fa-solid fa-calendar-check"></i> Próximo pagamento</span>
+        <span class="sal-value">${proximoPag.toLocaleDateString("pt-BR")}</span>
+      </div>
+      ${salarioConfig.obs ? `<div class="sal-item full"><span class="sal-label"><i class="fa-solid fa-note-sticky"></i> Fonte</span><span class="sal-value">${salarioConfig.obs}</span></div>` : ""}
+      <div class="sal-item" style="align-items:flex-end">
+        <span class="sal-label">&nbsp;</span>
+        <span class="sal-badge ${salarioConfig.ativo ? "active" : "inactive"}">${salarioConfig.ativo ? "Ativo" : "Inativo"}</span>
+      </div>
+    </div>`;
+}
+
+async function saveSalarioConfig() {
+  const ativo = document.getElementById("sal-ativo").checked;
+  const valor = parseFloat(document.getElementById("sal-valor").value);
+  const dia   = parseInt(document.getElementById("sal-dia").value);
+  const obs   = document.getElementById("sal-obs").value.trim();
+  if (!valor || valor <= 0) { showToast("Informe um valor válido", "error"); return; }
+  if (!dia || dia < 1 || dia > 31) { showToast("Dia de recebimento inválido (1-31)", "error"); return; }
+  try {
+    await setDoc(salarioRef(), { valor, dia, obs, ativo, atualizadoEm: new Date().toISOString() });
+    salarioConfig = { valor, dia, obs, ativo };
+    showToast("Salário mensal configurado!", "success");
+    closeModal("modal-salario");
+    renderSalarioConfig();
+    renderDashboard();
+    renderRelatorios();
+  } catch(e) { showToast("Erro ao salvar: " + e.message, "error"); }
+}
+
 // ─── GASTOS ──────────────────────────────────────────────────
 function renderGastos() {
   const totalG   = gastos.reduce((s,g) => s + g.valor, 0);
@@ -785,7 +868,7 @@ function renderAnualReport(year) {
     <div class="anual-summary-row">
       <div class="anual-stat income"><i class="fa-solid fa-arrow-down"></i><div><span class="anual-stat-label">Receitas ${year}</span><span class="anual-stat-value">${fmt(totalRec)}</span></div></div>
       <div class="anual-stat expense"><i class="fa-solid fa-arrow-up"></i><div><span class="anual-stat-label">Gastos ${year}</span><span class="anual-stat-value">${fmt(totalGas)}</span></div></div>
-      <div class="anual-stat ${totalSaldo >= 0 ? "balance-pos" : "balance-neg'"}"><i class="fa-solid fa-scale-balanced"></i><div><span class="anual-stat-label">Saldo do Ano</span><span class="anual-stat-value">${fmt(totalSaldo)}</span></div></div>
+      <div class="anual-stat ${totalSaldo >= 0 ? "balance-pos" : "balance-neg"}"><i class="fa-solid fa-scale-balanced"></i><div><span class="anual-stat-label">Saldo do Ano</span><span class="anual-stat-value">${fmt(totalSaldo)}</span></div></div>
       <div class="anual-stat savings"><i class="fa-solid fa-percent"></i><div><span class="anual-stat-label">Taxa de Poupança</span><span class="anual-stat-value">${taxa}</span></div></div>
     </div>`;
   }
@@ -799,7 +882,8 @@ function exportPDF(year) {
 
   for (let m = 0; m < 12; m++) {
     const mKey = `${year}-${String(m+1).padStart(2,"0")}`;
-    const rec = receitas.filter(r => monthKey(r.data) === mKey).reduce((s,r) => s + r.valor, 0);
+    const rec = receitas.filter(r => monthKey(r.data) === mKey).reduce((s,r) => s + r.valor, 0)
+              + getSalaryForMonth(`${year}-${String(m+1).padStart(2,"0")}`);
     const gas = calcGastosMes(mKey);
     const saldo = rec - gas;
     acumulado += saldo; totalRec += rec; totalGas += gas;
@@ -1424,6 +1508,8 @@ function resetModalGasto() {
   document.getElementById("credor-wrapper").classList.add("hidden");
   document.getElementById("gas-tem-credor").checked = false;
   document.getElementById("modal-gasto-title").innerHTML = '<i class="fa-solid fa-arrow-trend-down"></i> Novo Gasto';
+  const prev = document.getElementById("gas-parcelas-preview");
+  if (prev) prev.textContent = "";
   populateCartaoSelect();
 }
 
@@ -1480,9 +1566,39 @@ function bindUIEvents() {
   document.getElementById("btn-add-receita").addEventListener("click", () => { resetModalReceita(); openModal("modal-receita"); });
   document.getElementById("btn-save-receita").addEventListener("click", saveReceita);
 
+  // Salário mensal
+  document.getElementById("btn-config-salario")?.addEventListener("click", () => {
+    if (salarioConfig) {
+      document.getElementById("sal-ativo").checked  = salarioConfig.ativo ?? true;
+      document.getElementById("sal-valor").value    = salarioConfig.valor || "";
+      document.getElementById("sal-dia").value      = salarioConfig.dia   || 5;
+      document.getElementById("sal-obs").value      = salarioConfig.obs   || "";
+    } else {
+      document.getElementById("form-salario").reset();
+      document.getElementById("sal-ativo").checked = true;
+    }
+    openModal("modal-salario");
+  });
+  document.getElementById("btn-save-salario")?.addEventListener("click", saveSalarioConfig);
+
   // Nova gasto
   document.getElementById("btn-add-gasto").addEventListener("click", () => { resetModalGasto(); openModal("modal-gasto"); });
   document.getElementById("btn-save-gasto").addEventListener("click", saveGasto);
+
+  // Parcelas: prévia do valor por parcela
+  const updateParcelasPreview = () => {
+    const valor = parseFloat(document.getElementById("gas-valor")?.value) || 0;
+    const parc  = parseInt(document.getElementById("gas-parcelas")?.value)  || 1;
+    const prev  = document.getElementById("gas-parcelas-preview");
+    if (!prev) return;
+    if (valor > 0 && parc > 0) {
+      prev.textContent = parc === 1
+        ? `à vista — ${fmt(valor)}`
+        : `${parc}x de ${fmt(valor / parc)} = ${fmt(valor)}`;
+    } else { prev.textContent = ""; }
+  };
+  document.getElementById("gas-valor")?.addEventListener("input", updateParcelasPreview);
+  document.getElementById("gas-parcelas")?.addEventListener("input", updateParcelasPreview);
 
   // Novo cartão
   document.getElementById("btn-add-cartao").addEventListener("click", () => {

@@ -1101,4 +1101,64 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
   .phc-right { text-align: left; }
   .form-grid.inner { grid-template-columns: 1fr; }
   .modal.large { width: 100vw; }
+  .salary-info-row { gap: 8px; }
+  .sal-item.full { grid-column: 1 / -1; }
 }
+
+/* ── PARCELAS NUMBER INPUT ───────────────────────────────────── */
+.parcelas-preview-text {
+  display: block;
+  font-size: .78rem;
+  color: var(--primary-h);
+  font-weight: 600;
+  margin-top: 5px;
+  min-height: 18px;
+  letter-spacing: .01em;
+}
+
+/* ── SALARY CONFIG CARD ──────────────────────────────────────── */
+.salary-config-card .empty-state {
+  padding: 20px 0;
+}
+
+.salary-info-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 4px 0 8px;
+}
+
+.sal-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sal-item.full { grid-column: 1 / -1; }
+
+.sal-label {
+  font-size: .73rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text3);
+  font-weight: 600;
+}
+
+.sal-value {
+  font-size: .95rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.sal-badge {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 99px;
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.sal-badge.active   { background: var(--success-bg); color: var(--success); }
+.sal-badge.inactive { background: var(--danger-bg);  color: var(--danger); }
