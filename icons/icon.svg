@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="100" fill="#3b82f6"/>
+  <!-- Wallet icon -->
+  <g transform="translate(96, 96)">
+    <!-- Wallet body -->
+    <rect x="20" y="80" width="280" height="180" rx="20" fill="none" stroke="white" stroke-width="24"/>
+    <!-- Wallet flap -->
+    <path d="M20 110 Q20 80 50 80 L270 80 Q300 80 300 110" fill="none" stroke="white" stroke-width="24" stroke-linecap="round"/>
+    <!-- Card slot -->
+    <rect x="190" y="135" width="90" height="70" rx="12" fill="rgba(255,255,255,0.3)" stroke="white" stroke-width="16"/>
+    <!-- Coin circle -->
+    <circle cx="235" cy="170" r="18" fill="white" opacity="0.8"/>
+  </g>
+</svg>
