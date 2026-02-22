@@ -86,6 +86,13 @@ const salarioRef   = () => doc(db, "users", currentUser.uid, "config", "salarioM
 
 // ─── Inicialização ────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
+  // Registra Service Worker para PWA (atalho na tela inicial)
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js", { scope: "/" })
+      .then(reg => console.log("[SW] Registrado:", reg.scope))
+      .catch(err => console.warn("[SW] Falha ao registrar:", err));
+  }
+
   window.FinanceAuth.onAuthChange(async (user) => {
     if (user) {
       currentUser = user;
@@ -1781,6 +1788,11 @@ function renderChartPagamento() {
 function updateBadges() {
   document.getElementById("badge-receitas").textContent = receitas.length;
   document.getElementById("badge-gastos").textContent   = gastos.length;
+  // Sincroniza bottom nav badges
+  const br = document.getElementById("bnav-badge-receitas");
+  const bg = document.getElementById("bnav-badge-gastos");
+  if (br) { br.textContent = receitas.length; br.style.display = receitas.length > 0 ? "flex" : "none"; }
+  if (bg) { bg.textContent = gastos.length;   bg.style.display = gastos.length > 0   ? "flex" : "none"; }
 }
 
 function updateNotifications() {
@@ -2118,6 +2130,8 @@ function navigateTo(page) {
 function closeSidebarMobile() {
   if (window.innerWidth < 768) {
     document.getElementById("sidebar").classList.remove("open");
+    const backdrop = document.getElementById("sidebar-backdrop");
+    if (backdrop) { backdrop.classList.remove("visible"); backdrop.classList.add("hidden"); }
   }
 }
 
@@ -2197,9 +2211,24 @@ function bindUIEvents() {
       el.addEventListener("click", e => { e.preventDefault(); navigateTo(el.dataset.page); });
   });
 
-  // Sidebar toggle
+  // Sidebar toggle (mobile)
   document.getElementById("mobile-menu-btn").addEventListener("click", () => {
-    document.getElementById("sidebar").classList.toggle("open");
+    const sidebar  = document.getElementById("sidebar");
+    const backdrop = document.getElementById("sidebar-backdrop");
+    sidebar.classList.toggle("open");
+    if (sidebar.classList.contains("open")) {
+      backdrop.classList.remove("hidden"); backdrop.classList.add("visible");
+    } else {
+      backdrop.classList.remove("visible"); backdrop.classList.add("hidden");
+    }
+  });
+
+  // Backdrop click fecha sidebar
+  document.getElementById("sidebar-backdrop")?.addEventListener("click", () => closeSidebarMobile());
+
+  // Bottom nav
+  document.querySelectorAll(".bnav-item[data-page]").forEach(el => {
+    el.addEventListener("click", e => { e.preventDefault(); navigateTo(el.dataset.page); });
   });
 
   // Fechar modals

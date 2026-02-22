@@ -2,9 +2,20 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Controle de Gastos</title>
-  <link rel="stylesheet" href="styles.css?v=5" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#3b82f6"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="Financeiro"/>
+  <link rel="apple-touch-icon" href="icons/icon.svg"/>
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg"/>
+
+  <link rel="stylesheet" href="styles.css?v=6" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
@@ -85,6 +96,35 @@
       </button>
     </div>
   </aside>
+
+  <!-- SIDEBAR BACKDROP (mobile) -->
+  <div class="sidebar-backdrop hidden" id="sidebar-backdrop"></div>
+
+  <!-- BOTTOM NAV (mobile only) -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <a href="#" class="bnav-item active" data-page="dashboard">
+      <i class="fa-solid fa-gauge-high"></i>
+      <span>Início</span>
+    </a>
+    <a href="#" class="bnav-item" data-page="receitas">
+      <i class="fa-solid fa-arrow-trend-up"></i>
+      <span>Receitas</span>
+      <span class="bnav-badge" id="bnav-badge-receitas" style="display:none"></span>
+    </a>
+    <a href="#" class="bnav-item" data-page="gastos">
+      <i class="fa-solid fa-arrow-trend-down"></i>
+      <span>Gastos</span>
+      <span class="bnav-badge danger" id="bnav-badge-gastos" style="display:none"></span>
+    </a>
+    <a href="#" class="bnav-item" data-page="reservas">
+      <i class="fa-solid fa-piggy-bank"></i>
+      <span>Reservas</span>
+    </a>
+    <a href="#" class="bnav-item" data-page="relatorios">
+      <i class="fa-solid fa-chart-line"></i>
+      <span>Relatórios</span>
+    </a>
+  </nav>
 
   <!-- MAIN CONTENT -->
   <main class="main-content" id="main-content">

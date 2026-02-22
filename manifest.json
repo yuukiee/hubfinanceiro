@@ -1,0 +1,37 @@
+{
+  "name": "Controle de Gastos",
+  "short_name": "Financeiro",
+  "description": "Gerencie suas finanças pessoais com facilidade",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f0f6ff",
+  "theme_color": "#3b82f6",
+  "lang": "pt-BR",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Adicionar gasto",
+      "short_name": "Novo gasto",
+      "description": "Registra um novo gasto rapidamente",
+      "url": "/index.html#gastos",
+      "icons": [{ "src": "icons/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Ver resumo financeiro",
+      "url": "/index.html#dashboard",
+      "icons": [{ "src": "icons/icon.svg", "sizes": "any" }]
+    }
+  ]
+}
